@@ -1,7 +1,7 @@
 {
   "name": "Cassa Aziendale",
   "short_name": "Cassa",
-  "start_url": "/",
+  "start_url": "/cassa/",
   "display": "standalone",
   "background_color": "#F2F2F7",
   "theme_color": "#007AFF"

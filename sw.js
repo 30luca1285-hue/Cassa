@@ -1,5 +1,5 @@
 const CACHE = 'cassa-v1';
-const SHELL = ['/', '/index.html'];
+const SHELL = ['/cassa/', '/cassa/index.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -18,7 +18,6 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Solo richieste same-origin (ignora JSONP verso Google)
   if (!e.request.url.startsWith(self.location.origin)) return;
   e.respondWith(
     caches.match(e.request).then(r => r || fetch(e.request))
