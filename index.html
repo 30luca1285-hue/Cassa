@@ -513,7 +513,7 @@ function renderBudget(){
       </div>
       <div class="bud-bar-bg"><div class="bud-bar-fill ${fillClass}" style="width:${percAnno}%"></div></div>
       <div class="bud-row">
-        <span>Speso anno: <strong>${fmt(sAnno)}</strong></span>
+        <span>Uscite ${anno}: <strong>${fmt(sAnno)}</strong></span>
         <span style="color:${rimColor}">Rimane: <strong>${fmt(rimanente)}</strong></span>
       </div>
       <div class="bud-mese">
@@ -707,10 +707,11 @@ function aggOb(){
 
 /* ── SYNC CON MERGE ── */
 function mergeArr(sheetsData,locali,pushFn){
-  const ids=new Set(sheetsData.map(m=>m.id));
+  const unique=Array.from(new Map(sheetsData.map(m=>[m.id,m])).values());
+  const ids=new Set(unique.map(m=>m.id));
   const miss=locali.filter(m=>!ids.has(m.id));
   miss.forEach(m=>pushFn(m));
-  return [...sheetsData,...miss].sort((a,b)=>{
+  return [...unique,...miss].sort((a,b)=>{
     const da=pd(a.data)||new Date(0), db=pd(b.data)||new Date(0);
     return db-da||b.id.localeCompare(a.id);
   });
