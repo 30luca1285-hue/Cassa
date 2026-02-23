@@ -492,7 +492,7 @@ function renderBudget(){
   let html='';
 
   CATS.forEach(c=>{
-    const cat=typeof c==='string'?c:(c.nome||c.name||String(c));
+    const cat=catName(c);
     const bAnn=BUDGET[cat]||0;
     const bMese=bAnn/12;
     const sAnno=spesoAnno[cat]||0;
@@ -817,6 +817,14 @@ function aggSettings(){
 }
 
 /* ── UTIL ── */
+function catName(c){
+  if(typeof c==='string') return c;
+  if(Array.isArray(c)) return String(c[0]||'');
+  const v=c.nome||c.name||c.Nome||c.categoria||c.Categoria||c.value||c.Value;
+  if(v) return String(v);
+  const first=Object.values(c).find(x=>x&&typeof x==='string');
+  return first||String(c);
+}
 function setOggi(){const d=new Date();document.getElementById('inp-data').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function pd(s){if(!s)return null;const p=String(s).split('T')[0],[y,m,g]=p.split('-').map(Number);if(!y||!m||!g)return null;return new Date(y,m-1,g);}
 function fmt(n){return '€\u00a0'+Number(n).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -832,7 +840,7 @@ function initP(){
   datiP=loadP();
   apiCall('get_categorie')
     .then(r=>{
-      if(r&&r.success&&Array.isArray(r.data)&&r.data.length>0){CATS.length=0;r.data.forEach(c=>CATS.push(typeof c==='string'?c:(c.nome||c.name||String(c))));}
+      if(r&&r.success&&Array.isArray(r.data)&&r.data.length>0){CATS.length=0;r.data.forEach(c=>{const s=catName(c);if(s)CATS.push(s);});}
       populateCatSelects();
     })
     .catch(()=>populateCatSelects());
@@ -989,7 +997,7 @@ function loadP(){try{return JSON.parse(localStorage.getItem(LS_P))||[];}catch{re
 function renderCatSettings(){
   const el=document.getElementById('cat-list-set');
   if(!el)return;
-  el.innerHTML=CATS.map((x,i)=>{const c=typeof x==='string'?x:(x.nome||x.name||String(x));return`
+  el.innerHTML=CATS.map((x,i)=>{const c=catName(x);return`
     <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0;${i<CATS.length-1?' border-bottom:1px solid var(--border);':''}">
       <span style="font-size:21px;">${esc(c)}</span>
       <button onclick="elimCat('${esc(c)}')" style="border:none; background:none; color:var(--red); font-size:29px; line-height:1; cursor:pointer; padding:0 4px;">×</button>
