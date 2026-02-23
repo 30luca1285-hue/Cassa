@@ -348,6 +348,11 @@
     </div>
 
     <div class="card">
+      <div class="ctit">Versione</div>
+      <div class="sr"><span class="sl">Build</span><span class="sv">v1.1 · fa03f92</span></div>
+    </div>
+
+    <div class="card">
       <div class="ctit">Categorie personali</div>
       <div id="cat-list-set"></div>
       <div style="display:flex; gap:8px; margin-top:14px;">
@@ -421,7 +426,6 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div style="text-align:center;font-size:11px;color:var(--text2);padding:6px 0 4px;opacity:.5;">v1.1 · 3164e0f</div>
 
 <script>
 const LS_KEY='cassa_movimenti', LS_SYNC='cassa_last_sync', LS_OBJ='cassa_obiettivo';
@@ -733,7 +737,7 @@ function mergeP(r,silent){
   const loc=loadP(), ids=new Set(r.data.map(m=>m.id));
   const miss=loc.filter(m=>!ids.has(m.id));
   datiP=mergeArr(r.data,loc,m=>apiCall('add_personal',{id:m.id,data:m.data,categoria:m.categoria,tipo:m.tipo,importo:m.importo.toString(),nota:m.nota||''}));
-  saveP();renderCatSum();renderLP();aggSaldoP();localStorage.setItem(LS_SP,new Date().toISOString());
+  saveP();renderCatSum();renderLP();aggSaldoP();if(viewAttiva==='budget')renderBudget();localStorage.setItem(LS_SP,new Date().toISOString());
   if(!silent&&miss.length)toast('Personale: '+miss.length+' recuperati');
 }
 function syncTutti(silent){
@@ -984,11 +988,11 @@ function loadP(){try{return JSON.parse(localStorage.getItem(LS_P))||[];}catch{re
 function renderCatSettings(){
   const el=document.getElementById('cat-list-set');
   if(!el)return;
-  el.innerHTML=CATS.map((c,i)=>`
+  el.innerHTML=CATS.map((x,i)=>{const c=typeof x==='string'?x:(x.nome||x.name||String(x));return`
     <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0;${i<CATS.length-1?' border-bottom:1px solid var(--border);':''}">
       <span style="font-size:21px;">${esc(c)}</span>
       <button onclick="elimCat('${esc(c)}')" style="border:none; background:none; color:var(--red); font-size:29px; line-height:1; cursor:pointer; padding:0 4px;">×</button>
-    </div>`).join('');
+    </div>`;}).join('');
 }
 
 function aggiungiCat(){
