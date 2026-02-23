@@ -175,6 +175,25 @@
     /* ── BADGE CATEGORIA ── */
     .mcat { font-size:11px; font-weight:600; color:var(--blue); background:rgba(0,122,255,.09); border-radius:4px; padding:1px 5px; }
 
+    /* ── BUDGET ── */
+    .bud-card { background:var(--card); border-radius:16px; padding:14px 16px; margin-bottom:10px; }
+    .bud-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+    .bud-cat { font-size:15px; font-weight:700; color:var(--text); }
+    .bud-ann { font-size:13px; color:var(--text2); }
+    .bud-bar-bg { height:8px; background:var(--border); border-radius:6px; overflow:hidden; margin-bottom:8px; }
+    .bud-bar-fill { height:100%; border-radius:6px; transition:width .4s; }
+    .bud-fill-ok  { background:var(--green); }
+    .bud-fill-war { background:#FF9500; }
+    .bud-fill-ov  { background:var(--red); }
+    .bud-row { display:flex; justify-content:space-between; font-size:12px; color:var(--text2); margin-bottom:6px; }
+    .bud-mese { display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:var(--bg); border-radius:10px; }
+    .bud-mese-lbl { font-size:12px; font-weight:600; color:var(--text2); text-transform:uppercase; letter-spacing:.4px; }
+    .bud-mese-val { font-size:13px; font-weight:700; }
+    .bud-inp-row { display:flex; align-items:center; gap:8px; margin-top:8px; }
+    .bud-inp { flex:1; border:1.5px solid var(--border); border-radius:10px; padding:8px 12px; font-size:15px; font-family:inherit; color:var(--text); background:var(--bg); outline:none; text-align:right; }
+    .bud-inp:focus { border-color:var(--blue); }
+    .bud-save { border:none; background:var(--blue); color:#fff; border-radius:10px; padding:8px 16px; font-size:14px; font-weight:700; cursor:pointer; }
+
     /* ── VARI ── */
     .empty { text-align:center; padding:30px 0; color:var(--text2); font-size:15px; }
     .empty .ei { font-size:44px; display:block; margin-bottom:8px; }
@@ -291,6 +310,11 @@
   </div>
 </div>
 
+<!-- ══ BUDGET ══ -->
+<div class="view" id="view-budget">
+  <div style="margin-top:2px;" id="budget-list"></div>
+</div>
+
 <!-- ══ IMPOSTAZIONI ══ -->
 <div class="view" id="view-settings">
   <div style="margin-top:2px;">
@@ -342,6 +366,9 @@
   </button>
   <button class="tbb" onclick="showView('personale',this)">
     <span class="ti">👤</span><span class="tl">Personale</span>
+  </button>
+  <button class="tbb" onclick="showView('budget',this)">
+    <span class="ti">🎯</span><span class="tl">Budget</span>
   </button>
   <button class="tbb" onclick="showView('settings',this)">
     <span class="ti">⚙️</span><span class="tl">Impostazioni</span>
@@ -398,6 +425,9 @@
 <script>
 const LS_KEY='cassa_movimenti', LS_SYNC='cassa_last_sync', LS_OBJ='cassa_obiettivo';
 const LS_P='personale_movimenti', LS_SP='personale_last_sync', LS_URL='cassa_script_url';
+const LS_BUDGET='cassa_budget';
+const DEFAULT_BUDGET={'Abbigliamento':500,'Assicurazione Vita':72,'Auto':1200,'Casa':1500,'Camper':1500,'Cane':500,'Cerimonie':200,'Cultura / ChatGPT':500,'Fotografia':200,'Informatica':200,'Riccardo':2000,'Senza Categoria':0,'Moto':500,'Multe':2500,'Regali':1500,'Ristorante / Asporti / Bar':3000,'Salute':0,'Spesa Cibo':2000,'Sport':0,'Viaggi':0};
+let BUDGET={};
 
 let CATS=['Abbigliamento','Assicurazione Vita','Auto','Casa','Camper','Cane','Cerimonie','Cultura / ChatGPT','Fotografia','Informatica','Riccardo','Senza Categoria','Moto','Multe','Regali','Ristorante / Asporti / Bar','Salute','Spesa Cibo','Sport','Viaggi'];
 let dati=[], tipoC='incasso', pTipo='settimana', pOff=0, movEM=null, tE='incasso', saving=false;
@@ -427,9 +457,87 @@ function apiCall(action, params={}){
   return jsonpFetch(url,{action,...params});
 }
 
+/* ── BUDGET ── */
+function loadBudget(){
+  try{const s=localStorage.getItem(LS_BUDGET);BUDGET=s?JSON.parse(s):{...DEFAULT_BUDGET};}
+  catch(e){BUDGET={...DEFAULT_BUDGET};}
+}
+function saveBudget(){localStorage.setItem(LS_BUDGET,JSON.stringify(BUDGET));}
+
+function renderBudget(){
+  const now=new Date();
+  const anno=now.getFullYear();
+  const mese=now.getMonth();
+  const nomeMese=now.toLocaleDateString('it-IT',{month:'long',year:'numeric'});
+
+  // calcola spese per categoria (solo uscite personali)
+  const spesoAnno={}, spesoMese={};
+  datiP.forEach(m=>{
+    if(m.tipo!=='uscita') return;
+    const d=new Date(m.data);
+    const imp=Number(m.importo);
+    const cat=m.categoria;
+    if(d.getFullYear()===anno){
+      spesoAnno[cat]=(spesoAnno[cat]||0)+imp;
+      if(d.getMonth()===mese) spesoMese[cat]=(spesoMese[cat]||0)+imp;
+    }
+  });
+
+  const el=document.getElementById('budget-list');
+  let html='';
+
+  CATS.forEach(cat=>{
+    const bAnn=BUDGET[cat]||0;
+    const bMese=bAnn/12;
+    const sAnno=spesoAnno[cat]||0;
+    const sMese=spesoMese[cat]||0;
+    const percAnno=bAnn>0?Math.min((sAnno/bAnn)*100,100):0;
+    const percMese=bMese>0?Math.min((sMese/bMese)*100,100):0;
+    const fillClass=percAnno>=100?'bud-fill-ov':percAnno>=80?'bud-fill-war':'bud-fill-ok';
+    const fillMClass=percMese>=100?'bud-fill-ov':percMese>=80?'bud-fill-war':'bud-fill-ok';
+    const rimanente=bAnn-sAnno;
+    const rimanenteMese=bMese-sMese;
+    const rimColor=rimanente<0?'var(--red)':rimanente<bAnn*0.2?'#FF9500':'var(--green)';
+    const rimMColor=rimanenteMese<0?'var(--red)':rimanenteMese<bMese*0.2?'#FF9500':'var(--green)';
+
+    html+=`<div class="bud-card">
+      <div class="bud-head">
+        <span class="bud-cat">${esc(cat)}</span>
+        <span class="bud-ann">Budget annuale: <strong>${fmt(bAnn)}</strong></span>
+      </div>
+      <div class="bud-bar-bg"><div class="bud-bar-fill ${fillClass}" style="width:${percAnno}%"></div></div>
+      <div class="bud-row">
+        <span>Speso anno: <strong>${fmt(sAnno)}</strong></span>
+        <span style="color:${rimColor}">Rimane: <strong>${fmt(rimanente)}</strong></span>
+      </div>
+      <div class="bud-mese">
+        <span class="bud-mese-lbl">${nomeMese}</span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:80px;height:6px;background:var(--border);border-radius:4px;overflow:hidden;">
+            <div class="bud-bar-fill ${fillMClass}" style="width:${percMese}%"></div>
+          </div>
+          <span class="bud-mese-val" style="color:${rimMColor}">${fmt(sMese)} / ${fmt(bMese)}</span>
+        </div>
+      </div>
+      <div class="bud-inp-row">
+        <span style="font-size:13px;color:var(--text2);white-space:nowrap;">Budget annuale €</span>
+        <input class="bud-inp" type="number" inputmode="decimal" min="0" step="10" value="${bAnn}" data-cat="${esc(cat)}" onchange="aggiornaBudget(this)">
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML=html;
+}
+
+function aggiornaBudget(inp){
+  const cat=inp.getAttribute('data-cat');
+  const val=parseFloat(inp.value)||0;
+  BUDGET[cat]=val; saveBudget(); renderBudget();
+}
+
 /* ── INIT ── */
 document.addEventListener('DOMContentLoaded',()=>{
-  dati=load(); initP(); setOggi(); aggTutto();
+  dati=load(); loadBudget(); initP(); setOggi(); aggTutto();
   document.getElementById('inp-ob').value=getOb();
   syncTutti(true);
 });
@@ -442,8 +550,9 @@ function showView(n,b){
   viewAttiva=n;
   if(n==='settings'){aggSettings();renderCatSettings();}
   if(n==='personale'){renderCatSum();renderLP();}
-  const isP=n==='personale';
-  document.getElementById('hdr-title').textContent=isP?'Spese Personali':'Cassa Aziendale';
+  if(n==='budget'){renderBudget();}
+  const isP=n==='personale', isB=n==='budget';
+  document.getElementById('hdr-title').textContent=isP?'Spese Personali':isB?'Budget':'Cassa Aziendale';
   if(isP) aggSaldoP(); else aggSaldo();
   aggBilancioNetto();
 }
