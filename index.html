@@ -349,7 +349,7 @@
 
     <div class="card">
       <div class="ctit">Versione</div>
-      <div class="sr"><span class="sl">Build</span><span class="sv">v1.2 · 7f9894a</span></div>
+      <div class="sr"><span class="sl">Build</span><span class="sv">v1.3 · catName-fix</span></div>
     </div>
 
     <div class="card">
@@ -822,7 +822,7 @@ function catName(c){
   if(Array.isArray(c)) return String(c[0]||'');
   const v=c.nome||c.name||c.Nome||c.categoria||c.Categoria||c.value||c.Value;
   if(v) return String(v);
-  const first=Object.values(c).find(x=>x&&typeof x==='string');
+  const first=Object.values(c).find(x=>x&&typeof x==='string'&&isNaN(Number(x)));
   return first||String(c);
 }
 function setOggi(){const d=new Date();document.getElementById('inp-data').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
