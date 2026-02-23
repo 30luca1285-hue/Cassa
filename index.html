@@ -349,7 +349,7 @@
 
     <div class="card">
       <div class="ctit">Versione</div>
-      <div class="sr"><span class="sl">Build</span><span class="sv">v1.4 · backend-fix</span></div>
+      <div class="sr"><span class="sl">Build</span><span class="sv">v1.5 · budget-netto</span></div>
     </div>
 
     <div class="card">
@@ -475,12 +475,12 @@ function renderBudget(){
   const mese=now.getMonth();
   const nomeMese=now.toLocaleDateString('it-IT',{month:'long',year:'numeric'});
 
-  // calcola spese per categoria (solo uscite personali)
+  // calcola netto per categoria (uscite - entrate)
   const spesoAnno={}, spesoMese={};
   datiP.forEach(m=>{
-    if(m.tipo!=='uscita') return;
+    if(m.tipo!=='uscita'&&m.tipo!=='entrata') return;
     const d=new Date(m.data);
-    const imp=Number(m.importo);
+    const imp=Number(m.importo)*(m.tipo==='uscita'?1:-1);
     const cat=m.categoria;
     if(d.getFullYear()===anno){
       spesoAnno[cat]=(spesoAnno[cat]||0)+imp;
@@ -513,7 +513,7 @@ function renderBudget(){
       </div>
       <div class="bud-bar-bg"><div class="bud-bar-fill ${fillClass}" style="width:${percAnno}%"></div></div>
       <div class="bud-row">
-        <span>Uscite ${anno}: <strong>${fmt(sAnno)}</strong></span>
+        <span>Netto ${anno}: <strong>${fmt(sAnno)}</strong></span>
         <span style="color:${rimColor}">Rimane: <strong>${fmt(rimanente)}</strong></span>
       </div>
       <div class="bud-mese">
