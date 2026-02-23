@@ -349,7 +349,7 @@
 
     <div class="card">
       <div class="ctit">Versione</div>
-      <div class="sr"><span class="sl">Build</span><span class="sv">v1.3 · catName-fix</span></div>
+      <div class="sr"><span class="sl">Build</span><span class="sv">v1.4 · backend-fix</span></div>
     </div>
 
     <div class="card">
@@ -817,14 +817,7 @@ function aggSettings(){
 }
 
 /* ── UTIL ── */
-function catName(c){
-  if(typeof c==='string') return c;
-  if(Array.isArray(c)) return String(c[0]||'');
-  const v=c.nome||c.name||c.Nome||c.categoria||c.Categoria||c.value||c.Value;
-  if(v) return String(v);
-  const first=Object.values(c).find(x=>x&&typeof x==='string'&&isNaN(Number(x)));
-  return first||String(c);
-}
+function catName(c){ return typeof c==='string'?c:String(c); }
 function setOggi(){const d=new Date();document.getElementById('inp-data').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function pd(s){if(!s)return null;const p=String(s).split('T')[0],[y,m,g]=p.split('-').map(Number);if(!y||!m||!g)return null;return new Date(y,m-1,g);}
 function fmt(n){return '€\u00a0'+Number(n).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -840,7 +833,7 @@ function initP(){
   datiP=loadP();
   apiCall('get_categorie')
     .then(r=>{
-      if(r&&r.success&&Array.isArray(r.data)&&r.data.length>0){CATS.length=0;r.data.forEach(c=>{const s=catName(c);if(s)CATS.push(s);});}
+      if(r&&r.success&&Array.isArray(r.data)&&r.data.length>0){CATS.length=0;r.data.forEach(c=>CATS.push(c));}
       populateCatSelects();
     })
     .catch(()=>populateCatSelects());
