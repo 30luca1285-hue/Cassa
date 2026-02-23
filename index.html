@@ -464,7 +464,7 @@ function apiCall(action, params={}){
 
 /* ── BUDGET ── */
 function loadBudget(){
-  try{const s=localStorage.getItem(LS_BUDGET);BUDGET=s?JSON.parse(s):{...DEFAULT_BUDGET};}
+  try{const s=localStorage.getItem(LS_BUDGET);BUDGET=s?{...DEFAULT_BUDGET,...JSON.parse(s)}:{...DEFAULT_BUDGET};}
   catch(e){BUDGET={...DEFAULT_BUDGET};}
 }
 function saveBudget(){localStorage.setItem(LS_BUDGET,JSON.stringify(BUDGET));}
