@@ -269,8 +269,8 @@
     <div class="card">
       <div class="ctit">Per categoria</div>
       <div class="tabs" id="tabs-p">
-        <button class="tab active" onclick="cambiaTabP(this,'oggi')">Oggi</button>
-        <button class="tab" onclick="cambiaTabP(this,'settimana')">Sett.</button>
+        <button class="tab" onclick="cambiaTabP(this,'oggi')">Oggi</button>
+        <button class="tab active" onclick="cambiaTabP(this,'settimana')">Sett.</button>
         <button class="tab" onclick="cambiaTabP(this,'mese')">Mese</button>
         <button class="tab" onclick="cambiaTabP(this,'anno')">Anno</button>
       </div>
@@ -338,7 +338,7 @@
 <!-- TAB BAR -->
 <div class="tabbar">
   <button class="tbb active" onclick="showView('home',this)">
-    <span class="ti">🏠</span><span class="tl">Azienda</span>
+    <span class="ti"><img src="logo-galluzzi.jpg" style="height:28px;width:auto;object-fit:contain;display:block;margin:0 auto;filter:brightness(0);"></span><span class="tl">Azienda</span>
   </button>
   <button class="tbb" onclick="showView('personale',this)">
     <span class="ti">👤</span><span class="tl">Personale</span>
@@ -401,7 +401,7 @@ const LS_P='personale_movimenti', LS_SP='personale_last_sync', LS_URL='cassa_scr
 
 let CATS=['Abbigliamento','Assicurazione Vita','Auto','Casa','Camper','Cane','Cerimonie','Cultura / ChatGPT','Fotografia','Informatica','Riccardo','Senza Categoria','Moto','Multe','Regali','Ristorante / Asporti / Bar','Salute','Spesa Cibo','Sport','Viaggi'];
 let dati=[], tipoC='incasso', pTipo='settimana', pOff=0, movEM=null, tE='incasso', saving=false;
-let datiP=[], pTipoP='mese', pOffP=0, tipoPC='uscita', savingP=false;
+let datiP=[], pTipoP='settimana', pOffP=0, tipoPC='uscita', savingP=false;
 let viewAttiva='home';
 
 /* ── JSONP / API ── */
@@ -716,7 +716,7 @@ function initP(){
   datiP=loadP();
   apiCall('get_categorie')
     .then(r=>{
-      if(r&&r.success&&Array.isArray(r.data)&&r.data.length>0){CATS.length=0;r.data.forEach(c=>CATS.push(c));}
+      if(r&&r.success&&Array.isArray(r.data)&&r.data.length>0){CATS.length=0;r.data.forEach(c=>CATS.push(typeof c==='string'?c:(c.nome||c.name||String(c))));}
       populateCatSelects();
     })
     .catch(()=>populateCatSelects());
