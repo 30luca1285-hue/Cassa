@@ -486,7 +486,8 @@ function renderBudget(){
   const el=document.getElementById('budget-list');
   let html='';
 
-  CATS.forEach(cat=>{
+  CATS.forEach(c=>{
+    const cat=typeof c==='string'?c:(c.nome||c.name||String(c));
     const bAnn=BUDGET[cat]||0;
     const bMese=bAnn/12;
     const sAnno=spesoAnno[cat]||0;
