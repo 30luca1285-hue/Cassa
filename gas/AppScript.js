@@ -80,7 +80,9 @@ function doGet(e) {
   else if (action === 'modifica')      risultato = modificaMovimento(e.parameter);
   else if (action === 'elimina')       risultato = eliminaMovimento(e.parameter.id);
   else if (action === 'get_personal')  risultato = leggiPersonale();
-  else if (action === 'add_personal')  risultato = aggiungiPersonale(e.parameter);
+  else if (action === 'add_personal')       risultato = aggiungiPersonale(e.parameter);
+  else if (action === 'modifica_personal')  risultato = modificaPersonale(e.parameter);
+  else if (action === 'elimina_personal')   risultato = eliminaPersonale(e.parameter.id);
   else if (action === 'get_categorie') risultato = leggiCategorie();
   else if (action === 'add_categoria') risultato = aggiungiCategoria(e.parameter.nome);
   else if (action === 'del_categoria') risultato = eliminaCategoria(e.parameter.nome);
@@ -203,6 +205,48 @@ function leggiMovimenti() {
 
     return { success: true, data: movimenti };
 
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// ── Modifica un movimento personale ──
+function modificaPersonale(mov) {
+  try {
+    const foglio = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NOME_FOGLIO_PERSONALE);
+    if (!foglio) return { success: false, error: 'Foglio "Personale" non trovato' };
+    const dati = foglio.getDataRange().getValues();
+    for (let i = 1; i < dati.length; i++) {
+      if (dati[i][0].toString() === mov.id.toString()) {
+        foglio.getRange(i + 1, 2).setValue(mov.data);
+        foglio.getRange(i + 1, 3).setValue(mov.categoria);
+        foglio.getRange(i + 1, 4).setValue(mov.tipo);
+        foglio.getRange(i + 1, 5).setValue(parseFloat(mov.importo));
+        foglio.getRange(i + 1, 6).setValue(mov.nota || '');
+        foglio.getRange(i + 1, 1, 1, 6).setBackground(mov.tipo === 'entrata' ? '#E8F5E9' : '#FFEBEE');
+        foglio.getRange(i + 1, 5).setNumberFormat('€#,##0.00');
+        return { success: true };
+      }
+    }
+    return { success: false, error: 'Record non trovato' };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// ── Elimina un movimento personale ──
+function eliminaPersonale(id) {
+  try {
+    const foglio = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NOME_FOGLIO_PERSONALE);
+    if (!foglio) return { success: false, error: 'Foglio "Personale" non trovato' };
+    const dati = foglio.getDataRange().getValues();
+    for (let i = 1; i < dati.length; i++) {
+      if (dati[i][0].toString() === id.toString()) {
+        foglio.deleteRow(i + 1);
+        return { success: true };
+      }
+    }
+    return { success: false, error: 'Record non trovato' };
   } catch (err) {
     return { success: false, error: err.toString() };
   }

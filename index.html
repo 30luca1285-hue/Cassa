@@ -412,6 +412,27 @@
   </div>
 </div>
 
+<!-- MODAL MODIFICA PERSONALE -->
+<div class="ov" id="ov-ep" onclick="closeBg('ov-ep',event)">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtit mt-b">Modifica movimento</div>
+    <div class="campo">
+      <label>Tipo</label>
+      <div class="seg">
+        <button id="sep-e" class="sb" onclick="setTEP('entrata')">+ Entrata</button>
+        <button id="sep-u" class="sb" onclick="setTEP('uscita')">− Uscita</button>
+      </div>
+    </div>
+    <div class="campo"><label>Data</label><input type="date" id="ep-d"/></div>
+    <div class="campo"><label>Categoria</label><select id="ep-cat"></select></div>
+    <div class="campo"><label>Importo (€)</label><input type="number" id="ep-imp" class="big" inputmode="decimal" step="0.01" min="0"/></div>
+    <div class="campo"><label>Nota (opzionale)</label><textarea id="ep-nota" placeholder="Descrizione..."></textarea></div>
+    <button class="bok b" id="ep-bok" onclick="salvaModificaP()">Salva modifiche</button>
+    <button class="bdel" onclick="confermaEliminaP()">Elimina movimento</button>
+  </div>
+</div>
+
 <!-- MODAL PERSONALE -->
 <div class="ov" id="ov-p" onclick="closeBg('ov-p',event)">
   <div class="modal">
@@ -436,7 +457,7 @@ let BUDGET={};
 
 let CATS=['Abbigliamento','Assicurazione Vita','Auto','Casa','Camper','Cane','Cerimonie','Cultura / ChatGPT','Fotografia','Informatica','Riccardo','Senza Categoria','Moto','Multe','Regali','Ristorante / Asporti / Bar','Salute','Spesa Cibo','Sport','Viaggi'];
 let dati=[], tipoC='incasso', pTipo='settimana', pOff=0, movEM=null, tE='incasso', saving=false;
-let datiP=[], pTipoP='settimana', pOffP=0, tipoPC='uscita', savingP=false;
+let datiP=[], pTipoP='settimana', pOffP=0, tipoPC='uscita', savingP=false, movEMP=null, tEP='uscita';
 let viewAttiva='home';
 
 /* ── JSONP / API ── */
@@ -662,6 +683,53 @@ function confermaElimina(){
   dati=dati.filter(x=>x.id!==id);
   save(); aggTutto(); document.getElementById('ov-e').classList.remove('show'); toast('Eliminato');
   apiCall('elimina',{id})
+    .then(()=>syncDot('ok'))
+    .catch(()=>syncDot('err'));
+}
+
+/* ── MODIFICA/ELIMINA PERSONALE ── */
+function apriModP(id){
+  const m=datiP.find(x=>x.id===id); if(!m)return;
+  movEMP=m; tEP=m.tipo;
+  document.getElementById('ep-d').value=m.data;
+  document.getElementById('ep-imp').value=m.importo;
+  document.getElementById('ep-nota').value=m.nota||'';
+  const sel=document.getElementById('ep-cat');
+  sel.innerHTML='';
+  CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  sel.value=m.categoria;
+  updSegP(); document.getElementById('ov-ep').classList.add('show');
+}
+function setTEP(t){tEP=t;updSegP();}
+function updSegP(){
+  document.getElementById('sep-e').className='sb'+(tEP==='entrata'?' ai':'');
+  document.getElementById('sep-u').className='sb'+(tEP==='uscita'?' as':'');
+}
+function salvaModificaP(){
+  if(!movEMP)return;
+  const data=document.getElementById('ep-d').value;
+  const cat=document.getElementById('ep-cat').value;
+  const imp=parseFloat(document.getElementById('ep-imp').value);
+  const nota=document.getElementById('ep-nota').value.trim();
+  if(!data){toast('Inserisci una data');return;}
+  if(!imp||imp<=0){toast('Importo non valido');return;}
+  const agg={id:movEMP.id,data,categoria:cat,tipo:tEP,importo:imp,nota};
+  const i=datiP.findIndex(x=>x.id===movEMP.id);
+  if(i!==-1)datiP[i]=agg;
+  saveP(); renderCatSum(); renderLP(); aggSaldoP();
+  document.getElementById('ov-ep').classList.remove('show'); toast('Aggiornato');
+  document.getElementById('ep-bok').disabled=true;
+  apiCall('modifica_personal',{id:agg.id,data:agg.data,categoria:agg.categoria,tipo:agg.tipo,importo:agg.importo.toString(),nota:agg.nota||''})
+    .then(()=>{document.getElementById('ep-bok').disabled=false;syncDot('ok');})
+    .catch(()=>{document.getElementById('ep-bok').disabled=false;syncDot('err');});
+}
+function confermaEliminaP(){
+  if(!movEMP||!confirm('Eliminare questo movimento?'))return;
+  const id=movEMP.id;
+  datiP=datiP.filter(x=>x.id!==id);
+  saveP(); renderCatSum(); renderLP(); aggSaldoP();
+  document.getElementById('ov-ep').classList.remove('show'); toast('Eliminato');
+  apiCall('elimina_personal',{id})
     .then(()=>syncDot('ok'))
     .catch(()=>syncDot('err'));
 }
@@ -970,7 +1038,7 @@ function renderLP(){
   document.getElementById('ptit').textContent='Movimenti ('+lista.length+')';
   el.innerHTML=lista.length?lista.map(m=>{
     const isE=m.tipo==='entrata', nota=m.nota||m.categoria;
-    return`<div class="mov"><div class="mico ${isE?'incasso':'spesa'}">${isE?'📈':'📉'}</div><div class="minf"><div class="mnota">${esc(nota)}</div><div class="mdata">${fmtD(m.data)} · <span class="mcat">${esc(m.categoria)}</span></div></div><div class="mdx"><span class="mimp ${isE?'verde':'rosso'}">${isE?'+':'−'}${fmt(Number(m.importo))}</span></div></div>`;
+    return`<div class="mov" onclick="apriModP('${esc(m.id)}')"><div class="mico ${isE?'incasso':'spesa'}">${isE?'📈':'📉'}</div><div class="minf"><div class="mnota">${esc(nota)}</div><div class="mdata">${fmtD(m.data)} · <span class="mcat">${esc(m.categoria)}</span></div></div><div class="mdx"><span class="mimp ${isE?'verde':'rosso'}">${isE?'+':'−'}${fmt(Number(m.importo))}</span><span class="chev">›</span></div></div>`;
   }).join(''):'<div class="empty"><span class="ei">📭</span>Nessun movimento</div>';
 }
 
