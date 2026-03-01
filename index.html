@@ -176,6 +176,10 @@
     .mcat { font-size:11px; font-weight:600; color:var(--blue); background:rgba(0,122,255,.09); border-radius:4px; padding:1px 5px; }
 
     /* ── BUDGET ── */
+    .bud-nav { display:flex; align-items:center; justify-content:space-between; background:var(--card); border-radius:14px; padding:8px 12px; margin-bottom:0; }
+    .bud-nav-lbl { font-size:15px; font-weight:700; color:var(--text); text-transform:capitalize; }
+    .bud-nav-btn { border:none; background:none; font-size:26px; color:var(--blue); cursor:pointer; padding:0 8px; line-height:1; }
+    .bud-nav-btn:disabled { color:var(--border); cursor:default; }
     .bud-card { background:var(--card); border-radius:16px; padding:14px 16px; margin-bottom:10px; }
     .bud-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
     .bud-cat { font-size:15px; font-weight:700; color:var(--text); }
@@ -312,7 +316,12 @@
 
 <!-- ══ BUDGET ══ -->
 <div class="view" id="view-budget">
-  <div style="margin-top:2px;" id="budget-list"></div>
+  <div class="bud-nav">
+    <button class="bud-nav-btn" onclick="budgetCambiaMese(-1)">&#8249;</button>
+    <span class="bud-nav-lbl" id="bud-nav-lbl"></span>
+    <button class="bud-nav-btn" onclick="budgetCambiaMese(1)" id="bud-nav-next">&#8250;</button>
+  </div>
+  <div style="margin-top:10px;" id="budget-list"></div>
 </div>
 
 <!-- ══ IMPOSTAZIONI ══ -->
@@ -459,6 +468,7 @@ let CATS=['Abbigliamento','Assicurazione Vita','Auto','Casa','Camper','Cane','Ce
 let dati=[], tipoC='incasso', pTipo='settimana', pOff=0, movEM=null, tE='incasso', saving=false;
 let datiP=[], pTipoP='settimana', pOffP=0, tipoPC='uscita', savingP=false, movEMP=null, tEP='uscita';
 let viewAttiva='home';
+let budgetMeseOffset=0; // 0=mese corrente, -1=mese scorso, ecc.
 
 /* ── JSONP / API ── */
 function getUrl(){ return localStorage.getItem(LS_URL)||''; }
@@ -490,11 +500,25 @@ function loadBudget(){
 }
 function saveBudget(){localStorage.setItem(LS_BUDGET,JSON.stringify(BUDGET));}
 
+function budgetCambiaMese(delta){
+  budgetMeseOffset+=delta;
+  if(budgetMeseOffset>0) budgetMeseOffset=0;
+  renderBudget();
+}
+
 function renderBudget(){
-  const now=new Date();
-  const anno=now.getFullYear();
-  const mese=now.getMonth();
-  const nomeMese=now.toLocaleDateString('it-IT',{month:'long',year:'numeric'});
+  const ref=new Date();
+  ref.setDate(1);
+  ref.setMonth(ref.getMonth()+budgetMeseOffset);
+  const anno=ref.getFullYear();
+  const mese=ref.getMonth();
+  const nomeMese=ref.toLocaleDateString('it-IT',{month:'long',year:'numeric'});
+
+  // aggiorna navigatore
+  const lbl=document.getElementById('bud-nav-lbl');
+  const btnNext=document.getElementById('bud-nav-next');
+  if(lbl) lbl.textContent=nomeMese;
+  if(btnNext) btnNext.disabled=(budgetMeseOffset>=0);
 
   // calcola netto per categoria (uscite - entrate)
   const spesoAnno={}, spesoMese={};
