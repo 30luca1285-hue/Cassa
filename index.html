@@ -232,6 +232,8 @@
     .bf-tap { cursor:pointer; -webkit-tap-highlight-color:rgba(0,0,0,.05); }
     .bf-tap:active { transform:scale(.99); }
     .bf-bar-anno { background:rgba(255,255,255,.15); }
+    .bf-el { font-size:12px; color:var(--text2); margin:0 0 4px 0; font-weight:600; letter-spacing:.2px; }
+    .bf-card.tot .bf-el { color:rgba(255,255,255,.75); }
 
     /* Modal Inserimento Budget Familiare */
     .bf-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -410,7 +412,7 @@
 
     <div class="card">
       <div class="ctit">Versione</div>
-      <div class="sr"><span class="sl">Build</span><span class="sv">v1.7 · budget-familiare-yoy</span></div>
+      <div class="sr"><span class="sl">Build</span><span class="sv">v1.8 · breakdown-erika-luca</span></div>
     </div>
 
     <div class="card">
@@ -1238,19 +1240,34 @@ function loadBudgetFam(){
 }
 function saveBudgetFam(){localStorage.setItem(LS_BUDGET_FAM,JSON.stringify(BUDGET_FAM));}
 
+// Struttura SPESE_FAM: { anno: { cat: { tot:[12], E:[12 o null], L:[12 o null] } } }
+// E/L sono null (non disponibili) per il 2025; popolati per il 2026+
+function makeEmptyCatRecord(){return{tot:new Array(12).fill(0),E:new Array(12).fill(null),L:new Array(12).fill(null)};}
+
 function loadSpeseFam(){
   try{const s=localStorage.getItem(LS_SPESE_FAM);SPESE_FAM=s?JSON.parse(s):{};}
   catch(e){SPESE_FAM={};}
-  // Bootstrap 2025
+  // Migrazione: se vecchio formato (array piatto), convertilo
+  Object.keys(SPESE_FAM).forEach(a=>{
+    Object.keys(SPESE_FAM[a]||{}).forEach(c=>{
+      const v=SPESE_FAM[a][c];
+      if(Array.isArray(v)){
+        SPESE_FAM[a][c]={tot:v.slice(),E:new Array(12).fill(null),L:new Array(12).fill(null)};
+      }
+    });
+  });
+  // Bootstrap 2025 (totali da default, E/L non disponibili)
   if(!SPESE_FAM[2025])SPESE_FAM[2025]={};
   CATEGORIE_FAM.forEach(c=>{
-    if(!SPESE_FAM[2025][c])SPESE_FAM[2025][c]=(SPESE_FAM_DEFAULT_2025[c]||new Array(12).fill(0)).slice();
+    if(!SPESE_FAM[2025][c]){
+      SPESE_FAM[2025][c]={tot:(SPESE_FAM_DEFAULT_2025[c]||new Array(12).fill(0)).slice(),E:new Array(12).fill(null),L:new Array(12).fill(null)};
+    }
   });
   // Anno corrente
   const ac=new Date().getFullYear();
   if(!SPESE_FAM[ac])SPESE_FAM[ac]={};
   CATEGORIE_FAM.forEach(c=>{
-    if(!SPESE_FAM[ac][c])SPESE_FAM[ac][c]=new Array(12).fill(0);
+    if(!SPESE_FAM[ac][c])SPESE_FAM[ac][c]=makeEmptyCatRecord();
   });
   saveSpeseFam();
 }
@@ -1258,12 +1275,24 @@ function saveSpeseFam(){localStorage.setItem(LS_SPESE_FAM,JSON.stringify(SPESE_F
 
 function getSpesaFam(anno,cat,mese){
   if(!SPESE_FAM[anno]||!SPESE_FAM[anno][cat])return 0;
-  return Number(SPESE_FAM[anno][cat][mese-1])||0;
+  return Number(SPESE_FAM[anno][cat].tot[mese-1])||0;
 }
-function setSpesaFam(anno,cat,mese,imp){
+function getSpesaFamE(anno,cat,mese){
+  if(!SPESE_FAM[anno]||!SPESE_FAM[anno][cat])return null;
+  const v=SPESE_FAM[anno][cat].E[mese-1];
+  return v==null?null:Number(v);
+}
+function getSpesaFamL(anno,cat,mese){
+  if(!SPESE_FAM[anno]||!SPESE_FAM[anno][cat])return null;
+  const v=SPESE_FAM[anno][cat].L[mese-1];
+  return v==null?null:Number(v);
+}
+function setSpesaFam(anno,cat,mese,imp,impE,impL){
   if(!SPESE_FAM[anno])SPESE_FAM[anno]={};
-  if(!SPESE_FAM[anno][cat])SPESE_FAM[anno][cat]=new Array(12).fill(0);
-  SPESE_FAM[anno][cat][mese-1]=Number(imp)||0;
+  if(!SPESE_FAM[anno][cat])SPESE_FAM[anno][cat]=makeEmptyCatRecord();
+  SPESE_FAM[anno][cat].tot[mese-1]=Number(imp)||0;
+  if(impE!==undefined)SPESE_FAM[anno][cat].E[mese-1]=impE==null?null:Number(impE);
+  if(impL!==undefined)SPESE_FAM[anno][cat].L[mese-1]=impL==null?null:Number(impL);
   saveSpeseFam();
 }
 function getBudgetFam(anno,cat){return(BUDGET_FAM[anno]&&BUDGET_FAM[anno][cat])||0;}
@@ -1288,17 +1317,24 @@ function bfCalcCategoria(cat,anno,meseRif){
   const ap=anno-1;
   const valMese=getSpesaFam(anno,cat,meseRif);
   const valMesePrec=getSpesaFam(ap,cat,meseRif);
-  let ytd=0,ytdPrec=0;
+  const eMese=getSpesaFamE(anno,cat,meseRif);
+  const lMese=getSpesaFamL(anno,cat,meseRif);
+  let ytd=0,ytdPrec=0,eYtd=0,lYtd=0,hasEL=false;
   for(let m=1;m<=meseRif;m++){
     ytd+=getSpesaFam(anno,cat,m);
     ytdPrec+=getSpesaFam(ap,cat,m);
+    const eM=getSpesaFamE(anno,cat,m),lM=getSpesaFamL(anno,cat,m);
+    if(eM!=null){eYtd+=eM;hasEL=true;}
+    if(lM!=null){lYtd+=lM;hasEL=true;}
   }
   const bAnn=getBudgetFam(anno,cat);
   return{
     valMese,valMesePrec,deltaMese:valMese-valMesePrec,
     pctMese:valMesePrec?((valMese-valMesePrec)/valMesePrec*100):null,
+    eMese,lMese,
     ytd,ytdPrec,deltaYtd:ytd-ytdPrec,
     pctYtd:ytdPrec?((ytd-ytdPrec)/ytdPrec*100):null,
+    eYtd:hasEL?eYtd:null,lYtd:hasEL?lYtd:null,
     budgetAnnuo:bAnn,
     pctBudget:bAnn?(ytd/bAnn*100):0
   };
@@ -1310,17 +1346,24 @@ function renderBudgetFam(){
   document.getElementById('bf-nav-next').disabled=(bfMeseOffset>=0);
 
   let html='', totMese=0, totMesePrec=0, totYtd=0, totYtdPrec=0, totBudget=0;
+  let totEMese=0, totLMese=0, hasELMese=false, totEYtd=0, totLYtd=0, hasELYtd=false;
   CATEGORIE_FAM.forEach(cat=>{
     const c=bfCalcCategoria(cat,ref.anno,ref.mese);
     totMese+=c.valMese; totMesePrec+=c.valMesePrec;
     totYtd+=c.ytd; totYtdPrec+=c.ytdPrec; totBudget+=c.budgetAnnuo;
+    if(c.eMese!=null){totEMese+=c.eMese;hasELMese=true;}
+    if(c.lMese!=null){totLMese+=c.lMese;hasELMese=true;}
+    if(c.eYtd!=null){totEYtd+=c.eYtd;hasELYtd=true;}
+    if(c.lYtd!=null){totLYtd+=c.lYtd;hasELYtd=true;}
     html+=bfRenderCard(cat,c,ref,false);
   });
   const totC={
     valMese:totMese,valMesePrec:totMesePrec,deltaMese:totMese-totMesePrec,
     pctMese:totMesePrec?((totMese-totMesePrec)/totMesePrec*100):null,
+    eMese:hasELMese?totEMese:null,lMese:hasELMese?totLMese:null,
     ytd:totYtd,ytdPrec:totYtdPrec,deltaYtd:totYtd-totYtdPrec,
     pctYtd:totYtdPrec?((totYtd-totYtdPrec)/totYtdPrec*100):null,
+    eYtd:hasELYtd?totEYtd:null,lYtd:hasELYtd?totLYtd:null,
     budgetAnnuo:totBudget,pctBudget:totBudget?(totYtd/totBudget*100):0
   };
   html+=bfRenderCard('TOTALE FAMILIARE',totC,ref,true);
@@ -1340,6 +1383,10 @@ function bfRenderCard(nome,c,ref,isTot){
   const tap=isTot?'':`onclick="apriModalBFEdit('${esc(nome)}',${ref.anno},${ref.mese})"`;
   const annoTap=isTot?'':`onclick="apriBudgetAnn('${esc(nome)}',${ref.anno})"`;
   const meseLbl=ref.label.split(' ')[0];
+  const hasELMese=(c.eMese!=null||c.lMese!=null);
+  const hasELYtd=(c.eYtd!=null||c.lYtd!=null);
+  const elMese=hasELMese?`<div class="bf-el">E ${fmtNoDec(c.eMese||0)} · L ${fmtNoDec(c.lMese||0)}</div>`:'';
+  const elYtd=hasELYtd?`<div class="bf-el">E ${fmtNoDec(c.eYtd||0)} · L ${fmtNoDec(c.lYtd||0)}</div>`:'';
 
   return `<div class="bf-card${isTot?' tot':''}">
     <div class="bf-head">
@@ -1349,11 +1396,13 @@ function bfRenderCard(nome,c,ref,isTot){
     <div class="bf-sec bf-tap" ${tap}>
       <div class="bf-sec-lbl">${esc(meseLbl)}</div>
       <div class="bf-row cur"><span class="bf-yr">${ref.anno}</span><span><strong>${fmtNoDec(c.valMese)}</strong></span></div>
+      ${elMese}
       <div class="bf-row"><span class="bf-yr">${ap}</span><span>${fmtNoDec(c.valMesePrec)} <span class="bf-delta ${dMCls}">${aM} ${pMt}</span></span></div>
     </div>
     <div class="bf-sec">
       <div class="bf-sec-lbl">Anno-to-date (gen→${esc(meseAbbr(ref.mese))})</div>
       <div class="bf-row cur"><span class="bf-yr">${ref.anno}</span><span><strong>${fmtNoDec(c.ytd)}</strong></span></div>
+      ${elYtd}
       <div class="bf-row"><span class="bf-yr">${ap}</span><span>${fmtNoDec(c.ytdPrec)} <span class="bf-delta ${dYCls}">${aY} ${pYt}</span></span></div>
       <div class="bf-bar-bg"><div class="bf-bar-fill ${fillCls}" style="width:${pBC}%"></div></div>
       <div class="bf-bar-pct">${Math.round(c.pctBudget)}% del budget annuo</div>
@@ -1459,8 +1508,10 @@ function syncBudgetFam(silent){
     });
     (r.spese||[]).forEach(s=>{
       if(!SPESE_FAM[s.anno])SPESE_FAM[s.anno]={};
-      if(!SPESE_FAM[s.anno][s.categoria])SPESE_FAM[s.anno][s.categoria]=new Array(12).fill(0);
-      SPESE_FAM[s.anno][s.categoria][s.mese-1]=s.importo;
+      if(!SPESE_FAM[s.anno][s.categoria])SPESE_FAM[s.anno][s.categoria]=makeEmptyCatRecord();
+      SPESE_FAM[s.anno][s.categoria].tot[s.mese-1]=s.importo;
+      if(s.importoE!==undefined&&s.importoE!==null)SPESE_FAM[s.anno][s.categoria].E[s.mese-1]=s.importoE;
+      if(s.importoL!==undefined&&s.importoL!==null)SPESE_FAM[s.anno][s.categoria].L[s.mese-1]=s.importoL;
     });
     saveBudgetFam();saveSpeseFam();
     localStorage.setItem(LS_SBF,new Date().toISOString());

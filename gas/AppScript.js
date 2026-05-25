@@ -460,26 +460,27 @@ function setupFamCore() {
   fb.getRange(2, 1, righeBudget.length, 3).setValues(righeBudget);
   fb.getRange(2, 3, righeBudget.length, 1).setNumberFormat('€#,##0');
 
-  // Foglio SPESE MENSILI
+  // Foglio SPESE MENSILI (con breakdown E/L per 2026+)
   let fs = ss.getSheetByName(NOME_FOGLIO_SPESE_FAM);
   if (!fs) fs = ss.insertSheet(NOME_FOGLIO_SPESE_FAM);
   fs.clear();
-  const hs = fs.getRange(1, 1, 1, 4);
-  hs.setValues([['Categoria','Anno','Mese','Importo']]);
+  const hs = fs.getRange(1, 1, 1, 6);
+  hs.setValues([['Categoria','Anno','Mese','Importo','ImportoE','ImportoL']]);
   hs.setFontWeight('bold').setBackground('#FF7043').setFontColor('white');
-  fs.setColumnWidth(1, 180); fs.setColumnWidth(2, 80); fs.setColumnWidth(3, 80); fs.setColumnWidth(4, 120);
+  fs.setColumnWidth(1, 180); fs.setColumnWidth(2, 80); fs.setColumnWidth(3, 80);
+  fs.setColumnWidth(4, 120); fs.setColumnWidth(5, 100); fs.setColumnWidth(6, 100);
   fs.setFrozenRows(1);
 
   const righeSpese = [];
   CATEGORIE_FAM.forEach(cat => {
     const arr = SPESE_FAM_2025_DEFAULT[cat] || [];
     for (let m = 0; m < 12; m++) {
-      if (arr[m] != null) righeSpese.push([cat, 2025, m + 1, arr[m]]);
+      if (arr[m] != null) righeSpese.push([cat, 2025, m + 1, arr[m], '', '']);
     }
   });
   if (righeSpese.length) {
-    fs.getRange(2, 1, righeSpese.length, 4).setValues(righeSpese);
-    fs.getRange(2, 4, righeSpese.length, 1).setNumberFormat('€#,##0');
+    fs.getRange(2, 1, righeSpese.length, 6).setValues(righeSpese);
+    fs.getRange(2, 4, righeSpese.length, 3).setNumberFormat('€#,##0');
   }
 
   return {
@@ -492,7 +493,23 @@ function setupFamCore() {
   };
 }
 
-// Legge tutto: budget annuali + spese mensili
+// Migra schema esistente: aggiunge colonne ImportoE/ImportoL se mancanti
+function migraSpeseFamSchema() {
+  const fs = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NOME_FOGLIO_SPESE_FAM);
+  if (!fs) return { success: false, error: 'Foglio non trovato' };
+  const lastCol = fs.getLastColumn();
+  if (lastCol >= 6) return { success: true, message: 'Schema gia esteso (' + lastCol + ' colonne)' };
+  fs.getRange(1, 5, 1, 2).setValues([['ImportoE','ImportoL']])
+    .setFontWeight('bold').setBackground('#FF7043').setFontColor('white');
+  fs.setColumnWidth(5, 100); fs.setColumnWidth(6, 100);
+  const lastRow = fs.getLastRow();
+  if (lastRow > 1) {
+    fs.getRange(2, 5, lastRow - 1, 2).setNumberFormat('€#,##0');
+  }
+  return { success: true, message: 'Schema esteso: aggiunte ImportoE/ImportoL' };
+}
+
+// Legge tutto: budget annuali + spese mensili (con breakdown E/L se presente)
 function leggiBudgetFam() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -513,13 +530,16 @@ function leggiBudgetFam() {
 
     const spese = [];
     if (fs && fs.getLastRow() > 1) {
-      const dati = fs.getRange(2, 1, fs.getLastRow() - 1, 4).getValues();
+      const ncol = Math.max(4, fs.getLastColumn());
+      const dati = fs.getRange(2, 1, fs.getLastRow() - 1, ncol).getValues();
       dati.forEach(r => {
         if (r[0]) spese.push({
           categoria: r[0].toString(),
           anno: parseInt(r[1]) || 0,
           mese: parseInt(r[2]) || 0,
-          importo: parseFloat(r[3]) || 0
+          importo: parseFloat(r[3]) || 0,
+          importoE: r.length > 4 && r[4] !== '' ? (parseFloat(r[4]) || 0) : null,
+          importoL: r.length > 5 && r[5] !== '' ? (parseFloat(r[5]) || 0) : null
         });
       });
     }
@@ -531,12 +551,17 @@ function leggiBudgetFam() {
 }
 
 // Upsert spesa (categoria + anno + mese identificano univocamente)
+// Accetta opzionalmente importoE e importoL (quote pagate da Erika/Luca)
 function salvaSpesaFam(params) {
   try {
-    const cat     = (params.categoria || '').toString();
-    const anno    = parseInt(params.anno) || 0;
-    const mese    = parseInt(params.mese) || 0;
-    const importo = parseFloat(params.importo) || 0;
+    const cat      = (params.categoria || '').toString();
+    const anno     = parseInt(params.anno) || 0;
+    const mese     = parseInt(params.mese) || 0;
+    const importo  = parseFloat(params.importo) || 0;
+    const hasE     = params.importoE !== undefined && params.importoE !== '';
+    const hasL     = params.importoL !== undefined && params.importoL !== '';
+    const importoE = hasE ? (parseFloat(params.importoE) || 0) : null;
+    const importoL = hasL ? (parseFloat(params.importoL) || 0) : null;
 
     if (!cat || !anno || !mese || mese < 1 || mese > 12) {
       return { success: false, error: 'Parametri non validi' };
@@ -545,15 +570,28 @@ function salvaSpesaFam(params) {
     let fs = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NOME_FOGLIO_SPESE_FAM);
     if (!fs) return { success: false, error: 'Foglio "SpeseFamiliari" non trovato. Esegui setupFoglioBudgetFamiliare().' };
 
+    // Auto-migra schema se servono le colonne E/L
+    if ((hasE || hasL) && fs.getLastColumn() < 6) {
+      fs.getRange(1, 5, 1, 2).setValues([['ImportoE','ImportoL']])
+        .setFontWeight('bold').setBackground('#FF7043').setFontColor('white');
+      fs.setColumnWidth(5, 100); fs.setColumnWidth(6, 100);
+    }
+
     const dati = fs.getDataRange().getValues();
     for (let i = 1; i < dati.length; i++) {
       if (dati[i][0].toString() === cat && parseInt(dati[i][1]) === anno && parseInt(dati[i][2]) === mese) {
         fs.getRange(i + 1, 4).setValue(importo).setNumberFormat('€#,##0');
+        if (hasE) fs.getRange(i + 1, 5).setValue(importoE).setNumberFormat('€#,##0');
+        if (hasL) fs.getRange(i + 1, 6).setValue(importoL).setNumberFormat('€#,##0');
         return { success: true, updated: true };
       }
     }
-    fs.appendRow([cat, anno, mese, importo]);
-    fs.getRange(fs.getLastRow(), 4).setNumberFormat('€#,##0');
+    const row = [cat, anno, mese, importo];
+    if (hasE) row.push(importoE); else if (hasL) row.push('');
+    if (hasL) row.push(importoL);
+    fs.appendRow(row);
+    const lr = fs.getLastRow();
+    fs.getRange(lr, 4, 1, Math.max(1, row.length - 3)).setNumberFormat('€#,##0');
     return { success: true, created: true };
   } catch (err) {
     return { success: false, error: err.toString() };
