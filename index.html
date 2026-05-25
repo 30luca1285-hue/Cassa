@@ -198,6 +198,44 @@
     .bud-inp:focus { border-color:var(--blue); }
     .bud-save { border:none; background:var(--blue); color:#fff; border-radius:10px; padding:8px 16px; font-size:14px; font-weight:700; cursor:pointer; }
 
+    /* ── BUDGET FAMILIARE (YoY) ── */
+    .bf-card { background:var(--card); border-radius:16px; padding:14px 16px; margin-bottom:10px; }
+    .bf-card.tot { background:linear-gradient(135deg,#2C3E50,#34495E); color:#fff; }
+    .bf-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+    .bf-cat-nm { font-size:16px; font-weight:700; }
+    .bf-cat-bud { font-size:12px; color:var(--text2); }
+    .bf-card.tot .bf-cat-bud { color:rgba(255,255,255,.75); }
+    .bf-sec { padding:8px 0; border-top:1px solid var(--border); }
+    .bf-card.tot .bf-sec { border-top-color:rgba(255,255,255,.15); }
+    .bf-sec-lbl { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:5px; }
+    .bf-card.tot .bf-sec-lbl { color:rgba(255,255,255,.75); }
+    .bf-row { display:flex; justify-content:space-between; align-items:center; padding:3px 0; font-size:14px; }
+    .bf-row.cur { font-weight:700; font-size:15px; }
+    .bf-yr { color:var(--text2); font-weight:600; }
+    .bf-card.tot .bf-yr { color:rgba(255,255,255,.7); }
+    .bf-row.cur .bf-yr { color:var(--text); }
+    .bf-card.tot .bf-row.cur .bf-yr { color:#fff; }
+    .bf-delta { font-size:13px; font-weight:700; padding:2px 7px; border-radius:6px; margin-left:8px; }
+    .bf-delta.pos { color:#fff; background:var(--green); }
+    .bf-delta.neg { color:#fff; background:var(--red); }
+    .bf-delta.flat { color:var(--text2); background:var(--border); }
+    .bf-card.tot .bf-delta.flat { background:rgba(255,255,255,.2); color:#fff; }
+    .bf-bar-bg { height:6px; background:var(--border); border-radius:6px; overflow:hidden; margin-top:8px; }
+    .bf-card.tot .bf-bar-bg { background:rgba(255,255,255,.2); }
+    .bf-bar-fill { height:100%; border-radius:6px; transition:width .4s; }
+    .bf-bar-pct { font-size:11px; color:var(--text2); margin-top:4px; text-align:right; font-weight:600; }
+    .bf-card.tot .bf-bar-pct { color:rgba(255,255,255,.85); }
+    .bf-fill-ok  { background:var(--green); }
+    .bf-fill-war { background:#FF9500; }
+    .bf-fill-ov  { background:var(--red); }
+    .bf-card.tot .bf-fill-ok { background:#2ECC71; }
+    .bf-tap { cursor:pointer; -webkit-tap-highlight-color:rgba(0,0,0,.05); }
+    .bf-tap:active { transform:scale(.99); }
+    .bf-bar-anno { background:rgba(255,255,255,.15); }
+
+    /* Modal Inserimento Budget Familiare */
+    .bf-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
     /* ── VARI ── */
     .empty { text-align:center; padding:30px 0; color:var(--text2); font-size:15px; }
     .empty .ei { font-size:44px; display:block; margin-bottom:8px; }
@@ -324,6 +362,19 @@
   <div style="margin-top:10px;" id="budget-list"></div>
 </div>
 
+<!-- ══ BUDGET FAMILIARE ══ -->
+<div class="view" id="view-budget-fam">
+  <div class="bud-nav">
+    <button class="bud-nav-btn" onclick="bfCambiaMese(-1)">&#8249;</button>
+    <span class="bud-nav-lbl" id="bf-nav-lbl"></span>
+    <button class="bud-nav-btn" onclick="bfCambiaMese(1)" id="bf-nav-next">&#8250;</button>
+  </div>
+  <div style="margin-top:10px;" id="bf-list"></div>
+  <div style="margin-top:14px;">
+    <button class="bok b" onclick="apriModalBF()" style="background:var(--blue);">+ Nuova spesa familiare</button>
+  </div>
+</div>
+
 <!-- ══ IMPOSTAZIONI ══ -->
 <div class="view" id="view-settings">
   <div style="margin-top:2px;">
@@ -353,12 +404,13 @@
       <div class="sr"><span class="sl">Cassa · ultima sync</span><span class="sv" id="set-sync">—</span></div>
       <div class="sr"><span class="sl">Personale · movimenti</span><span class="sv" id="set-np">0</span></div>
       <div class="sr"><span class="sl">Personale · ultima sync</span><span class="sv" id="set-syncp">—</span></div>
+      <div class="sr"><span class="sl">Budget familiare · ultima sync</span><span class="sv" id="set-syncbf">—</span></div>
       <button class="bset" onclick="syncTutti(false)">Aggiorna tutto</button>
     </div>
 
     <div class="card">
       <div class="ctit">Versione</div>
-      <div class="sr"><span class="sl">Build</span><span class="sv">v1.6 · budget-nav-mesi</span></div>
+      <div class="sr"><span class="sl">Build</span><span class="sv">v1.7 · budget-familiare-yoy</span></div>
     </div>
 
     <div class="card">
@@ -383,6 +435,9 @@
   </button>
   <button class="tbb" onclick="showView('budget',this)">
     <span class="ti">🎯</span><span class="tl">Budget</span>
+  </button>
+  <button class="tbb" onclick="showView('budget-fam',this)">
+    <span class="ti">👨‍👩‍👦</span><span class="tl">Familiare</span>
   </button>
   <button class="tbb" onclick="showView('settings',this)">
     <span class="ti">⚙️</span><span class="tl">Impostazioni</span>
@@ -452,6 +507,34 @@
     <div class="campo"><label>Importo (€)</label><input type="number" id="p-imp" class="big" placeholder="0,00" inputmode="decimal" step="0.01" min="0"/></div>
     <div class="campo"><label>Nota (opzionale)</label><textarea id="p-nota" placeholder="Descrizione..."></textarea></div>
     <button class="bok r" id="p-bok" onclick="salvaP()">Salva Uscita</button>
+  </div>
+</div>
+
+<!-- MODAL BUDGET FAMILIARE -->
+<div class="ov" id="ov-bf" onclick="closeBg('ov-bf',event)">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtit mt-b" id="bf-mtit">Spesa familiare del mese</div>
+    <div class="campo"><label>Categoria</label><select id="bf-cat"></select></div>
+    <div class="bf-grid">
+      <div class="campo"><label>Anno</label><select id="bf-anno"></select></div>
+      <div class="campo"><label>Mese</label><select id="bf-mese"></select></div>
+    </div>
+    <div class="campo"><label>Importo totale del mese (€)</label><input type="number" id="bf-imp" class="big" placeholder="0,00" inputmode="decimal" step="0.01" min="0"/></div>
+    <button class="bok b" onclick="salvaBF()">Salva</button>
+    <button class="bdel" id="bf-bdel" onclick="eliminaBF()" style="display:none;">Elimina questa voce</button>
+  </div>
+</div>
+
+<!-- MODAL BUDGET FAMILIARE ANNUALE -->
+<div class="ov" id="ov-bf-ann" onclick="closeBg('ov-bf-ann',event)">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtit mt-b">Modifica budget annuale</div>
+    <div class="campo"><label>Categoria</label><input type="text" id="bf-ann-cat" readonly style="background:var(--border);"/></div>
+    <div class="campo"><label>Anno</label><input type="text" id="bf-ann-anno" readonly style="background:var(--border);"/></div>
+    <div class="campo"><label>Budget annuale (€)</label><input type="number" id="bf-ann-imp" class="big" inputmode="decimal" step="10" min="0"/></div>
+    <button class="bok b" onclick="salvaBudgetAnnFam()">Salva</button>
   </div>
 </div>
 
@@ -588,7 +671,7 @@ function aggiornaBudget(inp){
 
 /* ── INIT ── */
 document.addEventListener('DOMContentLoaded',()=>{
-  dati=load(); loadBudget(); initP(); setOggi(); aggTutto();
+  dati=load(); loadBudget(); loadBudgetFam(); loadSpeseFam(); initP(); setOggi(); aggTutto();
   document.getElementById('inp-ob').value=getOb();
   syncTutti(true);
 });
@@ -602,8 +685,10 @@ function showView(n,b){
   if(n==='settings'){aggSettings();renderCatSettings();}
   if(n==='personale'){renderCatSum();renderLP();}
   if(n==='budget'){renderBudget();}
-  const isP=n==='personale', isB=n==='budget';
-  document.getElementById('hdr-title').textContent=isP?'Spese Personali':isB?'Budget':'Cassa Aziendale';
+  if(n==='budget-fam'){renderBudgetFam();}
+  const isP=n==='personale', isB=n==='budget', isBF=n==='budget-fam';
+  const title=isP?'Spese Personali':isB?'Budget':isBF?'Budget Familiare':'Cassa Aziendale';
+  document.getElementById('hdr-title').textContent=title;
   if(isP) aggSaldoP(); else aggSaldo();
   aggBilancioNetto();
 }
@@ -837,6 +922,7 @@ function syncTutti(silent){
   if(!getUrl()){syncDot('err');return;}
   sync(silent);
   apiCall('get_personal').then(r=>mergeP(r,silent)).catch(()=>{});
+  syncBudgetFam(silent);
 }
 function syncDot(s){
   const el=document.getElementById('stato-sync');
@@ -897,11 +983,13 @@ function htmlMov(m){
 }
 
 function aggSettings(){
-  const ls=localStorage.getItem(LS_SYNC), lsp=localStorage.getItem(LS_SP);
+  const ls=localStorage.getItem(LS_SYNC), lsp=localStorage.getItem(LS_SP), lsbf=localStorage.getItem(LS_SBF);
   document.getElementById('set-n').textContent=dati.length;
   document.getElementById('set-sync').textContent=ls?fmtD(ls.split('T')[0]):'Mai';
   document.getElementById('set-np').textContent=datiP.length;
   document.getElementById('set-syncp').textContent=lsp?fmtD(lsp.split('T')[0]):'Mai';
+  const elBF=document.getElementById('set-syncbf');
+  if(elBF) elBF.textContent=lsbf?fmtD(lsbf.split('T')[0]):'Mai';
   const url=getUrl();
   document.getElementById('set-url-stato').textContent=url?'✓ Configurato':'Non configurato';
   const inpUrl=document.getElementById('inp-url');
@@ -1107,6 +1195,278 @@ function elimCat(nome){
   aggiornaCatSelects(); renderCatSettings();
   toast('Categoria eliminata');
   apiCall('del_categoria',{nome}).catch(()=>{});
+}
+
+/* ══════════════════════════════════════════════
+   SEZIONE BUDGET FAMILIARE (confronto YoY mese su mese)
+══════════════════════════════════════════════ */
+
+const LS_BUDGET_FAM='budget_fam';
+const LS_SPESE_FAM='spese_fam';
+const LS_SBF='sync_budget_fam';
+
+const CATEGORIE_FAM=['Auto','Casa','Spritz','Riccardo','Regali','Ristoranti','Spesa Cibo','Viaggi'];
+
+const BUDGET_FAM_DEFAULT={
+  2025:{Auto:3000,Casa:3000,Spritz:600,Riccardo:2000,Regali:1000,Ristoranti:3000,'Spesa Cibo':6000,Viaggi:5000},
+  2026:{Auto:1500,Casa:3000,Spritz:800,Riccardo:5000,Regali:1000,Ristoranti:3000,'Spesa Cibo':5000,Viaggi:3000}
+};
+
+// Dati storici 2025 (dal Google Sheet, verificati per somme totali)
+const SPESE_FAM_DEFAULT_2025={
+  Auto:[27,360,609,40,677,780,98,59,483,5,8,60],
+  Casa:[729,71,1514,23,0,20,286,116,86,50,190,492],
+  Spritz:[37,50,28,121,111,0,0,224,76,20,96,261],
+  Riccardo:[303,408,287,231,743,270,306,170,251,958,879,962],
+  Regali:[0,0,0,0,98,0,35,0,0,0,0,675],
+  Ristoranti:[244,185,299,248,354,221,147,364,173,209,244,203],
+  'Spesa Cibo':[297,234,295,244,386,247,606,335,297,733,535,660],
+  Viaggi:[0,0,0,81,230,1181,222,111,458,0,0,0]
+};
+
+let BUDGET_FAM={}, SPESE_FAM={};
+let bfMeseOffset=0;
+
+function loadBudgetFam(){
+  try{const s=localStorage.getItem(LS_BUDGET_FAM);BUDGET_FAM=s?JSON.parse(s):{};}
+  catch(e){BUDGET_FAM={};}
+  [2025,2026].forEach(a=>{
+    if(!BUDGET_FAM[a])BUDGET_FAM[a]={};
+    CATEGORIE_FAM.forEach(c=>{if(BUDGET_FAM[a][c]==null)BUDGET_FAM[a][c]=BUDGET_FAM_DEFAULT[a][c]||0;});
+  });
+  saveBudgetFam();
+}
+function saveBudgetFam(){localStorage.setItem(LS_BUDGET_FAM,JSON.stringify(BUDGET_FAM));}
+
+function loadSpeseFam(){
+  try{const s=localStorage.getItem(LS_SPESE_FAM);SPESE_FAM=s?JSON.parse(s):{};}
+  catch(e){SPESE_FAM={};}
+  // Bootstrap 2025
+  if(!SPESE_FAM[2025])SPESE_FAM[2025]={};
+  CATEGORIE_FAM.forEach(c=>{
+    if(!SPESE_FAM[2025][c])SPESE_FAM[2025][c]=(SPESE_FAM_DEFAULT_2025[c]||new Array(12).fill(0)).slice();
+  });
+  // Anno corrente
+  const ac=new Date().getFullYear();
+  if(!SPESE_FAM[ac])SPESE_FAM[ac]={};
+  CATEGORIE_FAM.forEach(c=>{
+    if(!SPESE_FAM[ac][c])SPESE_FAM[ac][c]=new Array(12).fill(0);
+  });
+  saveSpeseFam();
+}
+function saveSpeseFam(){localStorage.setItem(LS_SPESE_FAM,JSON.stringify(SPESE_FAM));}
+
+function getSpesaFam(anno,cat,mese){
+  if(!SPESE_FAM[anno]||!SPESE_FAM[anno][cat])return 0;
+  return Number(SPESE_FAM[anno][cat][mese-1])||0;
+}
+function setSpesaFam(anno,cat,mese,imp){
+  if(!SPESE_FAM[anno])SPESE_FAM[anno]={};
+  if(!SPESE_FAM[anno][cat])SPESE_FAM[anno][cat]=new Array(12).fill(0);
+  SPESE_FAM[anno][cat][mese-1]=Number(imp)||0;
+  saveSpeseFam();
+}
+function getBudgetFam(anno,cat){return(BUDGET_FAM[anno]&&BUDGET_FAM[anno][cat])||0;}
+function setBudgetFam(anno,cat,imp){
+  if(!BUDGET_FAM[anno])BUDGET_FAM[anno]={};
+  BUDGET_FAM[anno][cat]=Number(imp)||0;
+  saveBudgetFam();
+}
+
+function bfCambiaMese(d){
+  bfMeseOffset+=d;
+  if(bfMeseOffset>0)bfMeseOffset=0;
+  renderBudgetFam();
+}
+
+function bfGetRef(){
+  const r=new Date(); r.setDate(1); r.setMonth(r.getMonth()+bfMeseOffset);
+  return{anno:r.getFullYear(),mese:r.getMonth()+1,label:r.toLocaleDateString('it-IT',{month:'long',year:'numeric'})};
+}
+
+function bfCalcCategoria(cat,anno,meseRif){
+  const ap=anno-1;
+  const valMese=getSpesaFam(anno,cat,meseRif);
+  const valMesePrec=getSpesaFam(ap,cat,meseRif);
+  let ytd=0,ytdPrec=0;
+  for(let m=1;m<=meseRif;m++){
+    ytd+=getSpesaFam(anno,cat,m);
+    ytdPrec+=getSpesaFam(ap,cat,m);
+  }
+  const bAnn=getBudgetFam(anno,cat);
+  return{
+    valMese,valMesePrec,deltaMese:valMese-valMesePrec,
+    pctMese:valMesePrec?((valMese-valMesePrec)/valMesePrec*100):null,
+    ytd,ytdPrec,deltaYtd:ytd-ytdPrec,
+    pctYtd:ytdPrec?((ytd-ytdPrec)/ytdPrec*100):null,
+    budgetAnnuo:bAnn,
+    pctBudget:bAnn?(ytd/bAnn*100):0
+  };
+}
+
+function renderBudgetFam(){
+  const ref=bfGetRef();
+  document.getElementById('bf-nav-lbl').textContent=ref.label;
+  document.getElementById('bf-nav-next').disabled=(bfMeseOffset>=0);
+
+  let html='', totMese=0, totMesePrec=0, totYtd=0, totYtdPrec=0, totBudget=0;
+  CATEGORIE_FAM.forEach(cat=>{
+    const c=bfCalcCategoria(cat,ref.anno,ref.mese);
+    totMese+=c.valMese; totMesePrec+=c.valMesePrec;
+    totYtd+=c.ytd; totYtdPrec+=c.ytdPrec; totBudget+=c.budgetAnnuo;
+    html+=bfRenderCard(cat,c,ref,false);
+  });
+  const totC={
+    valMese:totMese,valMesePrec:totMesePrec,deltaMese:totMese-totMesePrec,
+    pctMese:totMesePrec?((totMese-totMesePrec)/totMesePrec*100):null,
+    ytd:totYtd,ytdPrec:totYtdPrec,deltaYtd:totYtd-totYtdPrec,
+    pctYtd:totYtdPrec?((totYtd-totYtdPrec)/totYtdPrec*100):null,
+    budgetAnnuo:totBudget,pctBudget:totBudget?(totYtd/totBudget*100):0
+  };
+  html+=bfRenderCard('TOTALE FAMILIARE',totC,ref,true);
+  document.getElementById('bf-list').innerHTML=html;
+}
+
+function bfRenderCard(nome,c,ref,isTot){
+  const ap=ref.anno-1;
+  const dMCls=!c.valMesePrec?'flat':(c.deltaMese<=0?'pos':'neg');
+  const dYCls=!c.ytdPrec?'flat':(c.deltaYtd<=0?'pos':'neg');
+  const aM=!c.valMesePrec?'·':(c.deltaMese<0?'↓':c.deltaMese>0?'↑':'=');
+  const aY=!c.ytdPrec?'·':(c.deltaYtd<0?'↓':c.deltaYtd>0?'↑':'=');
+  const pMt=c.pctMese==null?'':(Math.abs(c.pctMese)<10?c.pctMese.toFixed(1):Math.round(c.pctMese))+'%';
+  const pYt=c.pctYtd==null?'':(Math.abs(c.pctYtd)<10?c.pctYtd.toFixed(1):Math.round(c.pctYtd))+'%';
+  const fillCls=c.pctBudget>=100?'bf-fill-ov':c.pctBudget>=80?'bf-fill-war':'bf-fill-ok';
+  const pBC=Math.min(c.pctBudget,100);
+  const tap=isTot?'':`onclick="apriModalBFEdit('${esc(nome)}',${ref.anno},${ref.mese})"`;
+  const annoTap=isTot?'':`onclick="apriBudgetAnn('${esc(nome)}',${ref.anno})"`;
+  const meseLbl=ref.label.split(' ')[0];
+
+  return `<div class="bf-card${isTot?' tot':''}">
+    <div class="bf-head">
+      <span class="bf-cat-nm">${esc(nome)}</span>
+      <span class="bf-cat-bud" ${annoTap} style="cursor:${isTot?'default':'pointer'};">Budget ${ref.anno}: <strong>${fmtNoDec(c.budgetAnnuo)}</strong></span>
+    </div>
+    <div class="bf-sec bf-tap" ${tap}>
+      <div class="bf-sec-lbl">${esc(meseLbl)}</div>
+      <div class="bf-row cur"><span class="bf-yr">${ref.anno}</span><span><strong>${fmtNoDec(c.valMese)}</strong></span></div>
+      <div class="bf-row"><span class="bf-yr">${ap}</span><span>${fmtNoDec(c.valMesePrec)} <span class="bf-delta ${dMCls}">${aM} ${pMt}</span></span></div>
+    </div>
+    <div class="bf-sec">
+      <div class="bf-sec-lbl">Anno-to-date (gen→${esc(meseAbbr(ref.mese))})</div>
+      <div class="bf-row cur"><span class="bf-yr">${ref.anno}</span><span><strong>${fmtNoDec(c.ytd)}</strong></span></div>
+      <div class="bf-row"><span class="bf-yr">${ap}</span><span>${fmtNoDec(c.ytdPrec)} <span class="bf-delta ${dYCls}">${aY} ${pYt}</span></span></div>
+      <div class="bf-bar-bg"><div class="bf-bar-fill ${fillCls}" style="width:${pBC}%"></div></div>
+      <div class="bf-bar-pct">${Math.round(c.pctBudget)}% del budget annuo</div>
+    </div>
+  </div>`;
+}
+
+function fmtNoDec(n){return '€ '+Math.round(Number(n)||0).toLocaleString('it-IT');}
+function meseAbbr(m){return['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'][m-1]||'';}
+
+function apriModalBF(){
+  document.getElementById('bf-mtit').textContent='Nuova spesa familiare';
+  document.getElementById('bf-bdel').style.display='none';
+  populateBfSelects();
+  const ref=bfGetRef();
+  document.getElementById('bf-anno').value=ref.anno;
+  document.getElementById('bf-mese').value=ref.mese;
+  document.getElementById('bf-cat').value=CATEGORIE_FAM[0];
+  document.getElementById('bf-imp').value='';
+  document.getElementById('ov-bf').classList.add('show');
+  setTimeout(()=>document.getElementById('bf-imp').focus(),350);
+}
+
+function apriModalBFEdit(cat,anno,mese){
+  document.getElementById('bf-mtit').textContent='Modifica spesa familiare';
+  document.getElementById('bf-bdel').style.display='block';
+  populateBfSelects();
+  document.getElementById('bf-anno').value=anno;
+  document.getElementById('bf-mese').value=mese;
+  document.getElementById('bf-cat').value=cat;
+  const v=getSpesaFam(anno,cat,mese);
+  document.getElementById('bf-imp').value=v||'';
+  document.getElementById('ov-bf').classList.add('show');
+  setTimeout(()=>document.getElementById('bf-imp').focus(),350);
+}
+
+function populateBfSelects(){
+  const sc=document.getElementById('bf-cat');
+  sc.innerHTML=CATEGORIE_FAM.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  const sa=document.getElementById('bf-anno');
+  const cur=new Date().getFullYear();
+  sa.innerHTML=[cur-1,cur].map(a=>`<option value="${a}">${a}</option>`).join('');
+  const sm=document.getElementById('bf-mese');
+  const mesi=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+  sm.innerHTML=mesi.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+}
+
+function salvaBF(){
+  const cat=document.getElementById('bf-cat').value;
+  const anno=parseInt(document.getElementById('bf-anno').value);
+  const mese=parseInt(document.getElementById('bf-mese').value);
+  const imp=parseFloat(document.getElementById('bf-imp').value);
+  if(!cat||!anno||!mese){toast('Dati incompleti');return;}
+  if(isNaN(imp)||imp<0){toast('Importo non valido');return;}
+  setSpesaFam(anno,cat,mese,imp);
+  document.getElementById('ov-bf').classList.remove('show');
+  toast('Spesa salvata');
+  renderBudgetFam();
+  apiCall('set_spesa_fam',{categoria:cat,anno:anno,mese:mese,importo:imp.toString()})
+    .then(r=>{if(r&&r.success)localStorage.setItem(LS_SBF,new Date().toISOString());})
+    .catch(()=>{});
+}
+
+function eliminaBF(){
+  const cat=document.getElementById('bf-cat').value;
+  const anno=parseInt(document.getElementById('bf-anno').value);
+  const mese=parseInt(document.getElementById('bf-mese').value);
+  if(!confirm(`Azzerare "${cat}" di ${meseAbbr(mese)} ${anno}?`))return;
+  setSpesaFam(anno,cat,mese,0);
+  document.getElementById('ov-bf').classList.remove('show');
+  toast('Spesa azzerata');
+  renderBudgetFam();
+  apiCall('del_spesa_fam',{categoria:cat,anno:anno,mese:mese}).catch(()=>{});
+}
+
+function apriBudgetAnn(cat,anno){
+  document.getElementById('bf-ann-cat').value=cat;
+  document.getElementById('bf-ann-anno').value=anno;
+  document.getElementById('bf-ann-imp').value=getBudgetFam(anno,cat);
+  document.getElementById('ov-bf-ann').classList.add('show');
+  setTimeout(()=>document.getElementById('bf-ann-imp').focus(),350);
+}
+
+function salvaBudgetAnnFam(){
+  const cat=document.getElementById('bf-ann-cat').value;
+  const anno=parseInt(document.getElementById('bf-ann-anno').value);
+  const imp=parseFloat(document.getElementById('bf-ann-imp').value);
+  if(isNaN(imp)||imp<0){toast('Importo non valido');return;}
+  setBudgetFam(anno,cat,imp);
+  document.getElementById('ov-bf-ann').classList.remove('show');
+  toast('Budget aggiornato');
+  renderBudgetFam();
+  apiCall('set_budget_fam',{categoria:cat,anno:anno,importo:imp.toString()}).catch(()=>{});
+}
+
+function syncBudgetFam(silent){
+  if(!getUrl())return;
+  apiCall('get_fam').then(r=>{
+    if(!r||!r.success)return;
+    (r.budget||[]).forEach(b=>{
+      if(!BUDGET_FAM[b.anno])BUDGET_FAM[b.anno]={};
+      BUDGET_FAM[b.anno][b.categoria]=b.importo;
+    });
+    (r.spese||[]).forEach(s=>{
+      if(!SPESE_FAM[s.anno])SPESE_FAM[s.anno]={};
+      if(!SPESE_FAM[s.anno][s.categoria])SPESE_FAM[s.anno][s.categoria]=new Array(12).fill(0);
+      SPESE_FAM[s.anno][s.categoria][s.mese-1]=s.importo;
+    });
+    saveBudgetFam();saveSpeseFam();
+    localStorage.setItem(LS_SBF,new Date().toISOString());
+    if(viewAttiva==='budget-fam')renderBudgetFam();
+    if(!silent)toast('Budget familiare sincronizzato');
+  }).catch(()=>{});
 }
 
 /* ── SERVICE WORKER ── */

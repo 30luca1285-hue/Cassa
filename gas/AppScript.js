@@ -27,9 +27,32 @@
 //
 // ═══════════════════════════════════════════════════════════════════
 
-const NOME_FOGLIO           = 'Movimenti';
-const NOME_FOGLIO_PERSONALE = 'Personale';
-const NOME_FOGLIO_CATEGORIE = 'Categorie';
+const NOME_FOGLIO              = 'Movimenti';
+const NOME_FOGLIO_PERSONALE    = 'Personale';
+const NOME_FOGLIO_CATEGORIE    = 'Categorie';
+const NOME_FOGLIO_BUDGET_FAM   = 'BudgetFamiliare';
+const NOME_FOGLIO_SPESE_FAM    = 'SpeseFamiliari';
+
+// Categorie del budget familiare (allineate ai gruppi Splitwise)
+const CATEGORIE_FAM = ['Auto','Casa','Spritz','Riccardo','Regali','Ristoranti','Spesa Cibo','Viaggi'];
+
+// Default budget annuali (dal foglio storico)
+const BUDGET_FAM_DEFAULT = {
+  2025: {'Auto':3000,'Casa':3000,'Spritz':600,'Riccardo':2000,'Regali':1000,'Ristoranti':3000,'Spesa Cibo':6000,'Viaggi':5000},
+  2026: {'Auto':1500,'Casa':3000,'Spritz':800,'Riccardo':5000,'Regali':1000,'Ristoranti':3000,'Spesa Cibo':5000,'Viaggi':3000}
+};
+
+// Spese 2025 mensili (importi positivi, già verificati dal Google Sheet)
+const SPESE_FAM_2025_DEFAULT = {
+  'Auto':       [27,360,609,40,677,780,98,59,483,5,8,60],
+  'Casa':       [729,71,1514,23,0,20,286,116,86,50,190,492],
+  'Spritz':     [37,50,28,121,111,0,0,224,76,20,96,261],
+  'Riccardo':   [303,408,287,231,743,270,306,170,251,958,879,962],
+  'Regali':     [0,0,0,0,98,0,35,0,0,0,0,675],
+  'Ristoranti': [244,185,299,248,354,221,147,364,173,209,244,203],
+  'Spesa Cibo': [297,234,295,244,386,247,606,335,297,733,535,660],
+  'Viaggi':     [0,0,0,81,230,1181,222,111,458,0,0,0]
+};
 
 // ── Setup iniziale: crea il foglio con le intestazioni ──
 function setupFoglio() {
@@ -86,6 +109,11 @@ function doGet(e) {
   else if (action === 'get_categorie') risultato = leggiCategorie();
   else if (action === 'add_categoria') risultato = aggiungiCategoria(e.parameter.nome);
   else if (action === 'del_categoria') risultato = eliminaCategoria(e.parameter.nome);
+  else if (action === 'get_fam')       risultato = leggiBudgetFam();
+  else if (action === 'set_spesa_fam') risultato = salvaSpesaFam(e.parameter);
+  else if (action === 'set_budget_fam')risultato = salvaBudgetFam(e.parameter);
+  else if (action === 'del_spesa_fam') risultato = eliminaSpesaFam(e.parameter);
+  else if (action === 'setup_fam')     risultato = setupFamCore();
   else                                 risultato = { success: false, error: 'Azione sconosciuta: ' + action };
 
   const json = JSON.stringify(risultato);
@@ -396,4 +424,188 @@ function formattaData(valore) {
     return `${y}-${m}-${g}`;
   }
   return valore.toString();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  BUDGET FAMILIARE — Setup, lettura, scrittura
+// ═══════════════════════════════════════════════════════════════════
+
+// Setup completo: crea i 2 fogli, popola dati 2025 + budget 2025/2026
+// Eseguibile sia dall'editor (con alert UI) sia via webapp (action=setup_fam)
+function setupFoglioBudgetFamiliare() {
+  const res = setupFamCore();
+  try { SpreadsheetApp.getUi().alert(res.message); } catch(e) { /* contesto webapp, niente UI */ }
+  return res;
+}
+
+function setupFamCore() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Foglio BUDGET ANNUALE
+  let fb = ss.getSheetByName(NOME_FOGLIO_BUDGET_FAM);
+  if (!fb) fb = ss.insertSheet(NOME_FOGLIO_BUDGET_FAM);
+  fb.clear();
+  const hb = fb.getRange(1, 1, 1, 3);
+  hb.setValues([['Categoria','Anno','BudgetAnnuale']]);
+  hb.setFontWeight('bold').setBackground('#7E57C2').setFontColor('white');
+  fb.setColumnWidth(1, 180); fb.setColumnWidth(2, 80); fb.setColumnWidth(3, 140);
+  fb.setFrozenRows(1);
+
+  const righeBudget = [];
+  [2025, 2026].forEach(anno => {
+    CATEGORIE_FAM.forEach(cat => {
+      righeBudget.push([cat, anno, BUDGET_FAM_DEFAULT[anno][cat] || 0]);
+    });
+  });
+  fb.getRange(2, 1, righeBudget.length, 3).setValues(righeBudget);
+  fb.getRange(2, 3, righeBudget.length, 1).setNumberFormat('€#,##0');
+
+  // Foglio SPESE MENSILI
+  let fs = ss.getSheetByName(NOME_FOGLIO_SPESE_FAM);
+  if (!fs) fs = ss.insertSheet(NOME_FOGLIO_SPESE_FAM);
+  fs.clear();
+  const hs = fs.getRange(1, 1, 1, 4);
+  hs.setValues([['Categoria','Anno','Mese','Importo']]);
+  hs.setFontWeight('bold').setBackground('#FF7043').setFontColor('white');
+  fs.setColumnWidth(1, 180); fs.setColumnWidth(2, 80); fs.setColumnWidth(3, 80); fs.setColumnWidth(4, 120);
+  fs.setFrozenRows(1);
+
+  const righeSpese = [];
+  CATEGORIE_FAM.forEach(cat => {
+    const arr = SPESE_FAM_2025_DEFAULT[cat] || [];
+    for (let m = 0; m < 12; m++) {
+      if (arr[m] != null) righeSpese.push([cat, 2025, m + 1, arr[m]]);
+    }
+  });
+  if (righeSpese.length) {
+    fs.getRange(2, 1, righeSpese.length, 4).setValues(righeSpese);
+    fs.getRange(2, 4, righeSpese.length, 1).setNumberFormat('€#,##0');
+  }
+
+  return {
+    success: true,
+    righeBudget: righeBudget.length,
+    righeSpese: righeSpese.length,
+    message: 'Budget Familiare configurato!\n' +
+      '- ' + righeBudget.length + ' righe budget (2025 + 2026)\n' +
+      '- ' + righeSpese.length + ' righe spese 2025'
+  };
+}
+
+// Legge tutto: budget annuali + spese mensili
+function leggiBudgetFam() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const fb = ss.getSheetByName(NOME_FOGLIO_BUDGET_FAM);
+    const fs = ss.getSheetByName(NOME_FOGLIO_SPESE_FAM);
+
+    const budget = [];
+    if (fb && fb.getLastRow() > 1) {
+      const dati = fb.getRange(2, 1, fb.getLastRow() - 1, 3).getValues();
+      dati.forEach(r => {
+        if (r[0]) budget.push({
+          categoria: r[0].toString(),
+          anno: parseInt(r[1]) || 0,
+          importo: parseFloat(r[2]) || 0
+        });
+      });
+    }
+
+    const spese = [];
+    if (fs && fs.getLastRow() > 1) {
+      const dati = fs.getRange(2, 1, fs.getLastRow() - 1, 4).getValues();
+      dati.forEach(r => {
+        if (r[0]) spese.push({
+          categoria: r[0].toString(),
+          anno: parseInt(r[1]) || 0,
+          mese: parseInt(r[2]) || 0,
+          importo: parseFloat(r[3]) || 0
+        });
+      });
+    }
+
+    return { success: true, budget: budget, spese: spese };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// Upsert spesa (categoria + anno + mese identificano univocamente)
+function salvaSpesaFam(params) {
+  try {
+    const cat     = (params.categoria || '').toString();
+    const anno    = parseInt(params.anno) || 0;
+    const mese    = parseInt(params.mese) || 0;
+    const importo = parseFloat(params.importo) || 0;
+
+    if (!cat || !anno || !mese || mese < 1 || mese > 12) {
+      return { success: false, error: 'Parametri non validi' };
+    }
+
+    let fs = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NOME_FOGLIO_SPESE_FAM);
+    if (!fs) return { success: false, error: 'Foglio "SpeseFamiliari" non trovato. Esegui setupFoglioBudgetFamiliare().' };
+
+    const dati = fs.getDataRange().getValues();
+    for (let i = 1; i < dati.length; i++) {
+      if (dati[i][0].toString() === cat && parseInt(dati[i][1]) === anno && parseInt(dati[i][2]) === mese) {
+        fs.getRange(i + 1, 4).setValue(importo).setNumberFormat('€#,##0');
+        return { success: true, updated: true };
+      }
+    }
+    fs.appendRow([cat, anno, mese, importo]);
+    fs.getRange(fs.getLastRow(), 4).setNumberFormat('€#,##0');
+    return { success: true, created: true };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// Upsert budget annuale (categoria + anno univoci)
+function salvaBudgetFam(params) {
+  try {
+    const cat     = (params.categoria || '').toString();
+    const anno    = parseInt(params.anno) || 0;
+    const importo = parseFloat(params.importo) || 0;
+
+    if (!cat || !anno) return { success: false, error: 'Parametri non validi' };
+
+    const fb = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NOME_FOGLIO_BUDGET_FAM);
+    if (!fb) return { success: false, error: 'Foglio "BudgetFamiliare" non trovato. Esegui setupFoglioBudgetFamiliare().' };
+
+    const dati = fb.getDataRange().getValues();
+    for (let i = 1; i < dati.length; i++) {
+      if (dati[i][0].toString() === cat && parseInt(dati[i][1]) === anno) {
+        fb.getRange(i + 1, 3).setValue(importo).setNumberFormat('€#,##0');
+        return { success: true, updated: true };
+      }
+    }
+    fb.appendRow([cat, anno, importo]);
+    fb.getRange(fb.getLastRow(), 3).setNumberFormat('€#,##0');
+    return { success: true, created: true };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// Elimina spesa (cat + anno + mese)
+function eliminaSpesaFam(params) {
+  try {
+    const cat  = (params.categoria || '').toString();
+    const anno = parseInt(params.anno) || 0;
+    const mese = parseInt(params.mese) || 0;
+
+    const fs = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NOME_FOGLIO_SPESE_FAM);
+    if (!fs) return { success: false, error: 'Foglio non trovato' };
+
+    const dati = fs.getDataRange().getValues();
+    for (let i = 1; i < dati.length; i++) {
+      if (dati[i][0].toString() === cat && parseInt(dati[i][1]) === anno && parseInt(dati[i][2]) === mese) {
+        fs.deleteRow(i + 1);
+        return { success: true };
+      }
+    }
+    return { success: false, error: 'Record non trovato' };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
 }
