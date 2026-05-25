@@ -412,7 +412,7 @@
 
     <div class="card">
       <div class="ctit">Versione</div>
-      <div class="sr"><span class="sl">Build</span><span class="sv">v1.8 · breakdown-erika-luca</span></div>
+      <div class="sr"><span class="sl">Build</span><span class="sv">v1.9 · proiezione-fine-anno</span></div>
     </div>
 
     <div class="card">
@@ -1319,7 +1319,7 @@ function bfCalcCategoria(cat,anno,meseRif){
   const valMesePrec=getSpesaFam(ap,cat,meseRif);
   const eMese=getSpesaFamE(anno,cat,meseRif);
   const lMese=getSpesaFamL(anno,cat,meseRif);
-  let ytd=0,ytdPrec=0,eYtd=0,lYtd=0,hasEL=false;
+  let ytd=0,ytdPrec=0,eYtd=0,lYtd=0,hasEL=false,totAnnoPrec=0;
   for(let m=1;m<=meseRif;m++){
     ytd+=getSpesaFam(anno,cat,m);
     ytdPrec+=getSpesaFam(ap,cat,m);
@@ -1327,7 +1327,18 @@ function bfCalcCategoria(cat,anno,meseRif){
     if(eM!=null){eYtd+=eM;hasEL=true;}
     if(lM!=null){lYtd+=lM;hasEL=true;}
   }
+  for(let m=1;m<=12;m++) totAnnoPrec+=getSpesaFam(ap,cat,m);
   const bAnn=getBudgetFam(anno,cat);
+  // Proiezione fine anno: stagionale (basata su pattern 2025) o lineare come fallback
+  let proj=0,projType='none';
+  if(totAnnoPrec>0&&ytdPrec>0){
+    const weight=ytdPrec/totAnnoPrec;
+    proj=weight>0?ytd/weight:0;
+    projType='seasonal';
+  }else if(meseRif>0){
+    proj=ytd/meseRif*12;
+    projType='linear';
+  }
   return{
     valMese,valMesePrec,deltaMese:valMese-valMesePrec,
     pctMese:valMesePrec?((valMese-valMesePrec)/valMesePrec*100):null,
@@ -1336,7 +1347,9 @@ function bfCalcCategoria(cat,anno,meseRif){
     pctYtd:ytdPrec?((ytd-ytdPrec)/ytdPrec*100):null,
     eYtd:hasEL?eYtd:null,lYtd:hasEL?lYtd:null,
     budgetAnnuo:bAnn,
-    pctBudget:bAnn?(ytd/bAnn*100):0
+    pctBudget:bAnn?(ytd/bAnn*100):0,
+    proj:Math.round(proj),projType,
+    projDelta:bAnn?(Math.round(proj)-bAnn):null
   };
 }
 
@@ -1347,10 +1360,12 @@ function renderBudgetFam(){
 
   let html='', totMese=0, totMesePrec=0, totYtd=0, totYtdPrec=0, totBudget=0;
   let totEMese=0, totLMese=0, hasELMese=false, totEYtd=0, totLYtd=0, hasELYtd=false;
+  let totProj=0;
   CATEGORIE_FAM.forEach(cat=>{
     const c=bfCalcCategoria(cat,ref.anno,ref.mese);
     totMese+=c.valMese; totMesePrec+=c.valMesePrec;
     totYtd+=c.ytd; totYtdPrec+=c.ytdPrec; totBudget+=c.budgetAnnuo;
+    totProj+=c.proj;
     if(c.eMese!=null){totEMese+=c.eMese;hasELMese=true;}
     if(c.lMese!=null){totLMese+=c.lMese;hasELMese=true;}
     if(c.eYtd!=null){totEYtd+=c.eYtd;hasELYtd=true;}
@@ -1364,7 +1379,9 @@ function renderBudgetFam(){
     ytd:totYtd,ytdPrec:totYtdPrec,deltaYtd:totYtd-totYtdPrec,
     pctYtd:totYtdPrec?((totYtd-totYtdPrec)/totYtdPrec*100):null,
     eYtd:hasELYtd?totEYtd:null,lYtd:hasELYtd?totLYtd:null,
-    budgetAnnuo:totBudget,pctBudget:totBudget?(totYtd/totBudget*100):0
+    budgetAnnuo:totBudget,pctBudget:totBudget?(totYtd/totBudget*100):0,
+    proj:totProj,projType:'seasonal',
+    projDelta:totBudget?(totProj-totBudget):null
   };
   html+=bfRenderCard('TOTALE FAMILIARE',totC,ref,true);
   document.getElementById('bf-list').innerHTML=html;
@@ -1388,6 +1405,18 @@ function bfRenderCard(nome,c,ref,isTot){
   const elMese=hasELMese?`<div class="bf-el">E ${fmtNoDec(c.eMese||0)} · L ${fmtNoDec(c.lMese||0)}</div>`:'';
   const elYtd=hasELYtd?`<div class="bf-el">E ${fmtNoDec(c.eYtd||0)} · L ${fmtNoDec(c.lYtd||0)}</div>`:'';
 
+  // Proiezione fine anno
+  let projHtml='';
+  if(c.proj>0&&c.budgetAnnuo>0){
+    const dCls=c.projDelta>0?'neg':c.projDelta<0?'pos':'flat';
+    const dArr=c.projDelta>0?'↑ +':c.projDelta<0?'↓ ':'= ';
+    const projLbl=c.projType==='seasonal'?'stagionale':'lineare';
+    projHtml=`<div class="bf-sec">
+      <div class="bf-sec-lbl">Proiezione fine ${ref.anno} <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.7;">(${projLbl})</span></div>
+      <div class="bf-row cur"><span class="bf-yr">stima</span><span><strong>${fmtNoDec(c.proj)}</strong> <span class="bf-delta ${dCls}">${dArr}${fmtNoDec(Math.abs(c.projDelta))}</span></span></div>
+    </div>`;
+  }
+
   return `<div class="bf-card${isTot?' tot':''}">
     <div class="bf-head">
       <span class="bf-cat-nm">${esc(nome)}</span>
@@ -1407,6 +1436,7 @@ function bfRenderCard(nome,c,ref,isTot){
       <div class="bf-bar-bg"><div class="bf-bar-fill ${fillCls}" style="width:${pBC}%"></div></div>
       <div class="bf-bar-pct">${Math.round(c.pctBudget)}% del budget annuo</div>
     </div>
+    ${projHtml}
   </div>`;
 }
 
