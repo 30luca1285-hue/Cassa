@@ -198,6 +198,35 @@
     .bud-inp:focus { border-color:var(--blue); }
     .bud-save { border:none; background:var(--blue); color:#fff; border-radius:10px; padding:8px 16px; font-size:14px; font-weight:700; cursor:pointer; }
 
+    /* ── BUDGET · SPECCHIETTO ANNUALE ── */
+    .bsom { background:linear-gradient(135deg,#2C3E50,#34495E); color:#fff; border-radius:18px; padding:16px 18px; margin-bottom:14px; box-shadow:0 6px 20px rgba(44,62,80,.25); }
+    .bsom-top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; }
+    .bsom-tit { font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; }
+    .bsom-anno { font-size:12px; color:rgba(255,255,255,.7); font-weight:700; }
+    .bsom-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:14px; }
+    .bsom-grid > div { display:flex; flex-direction:column; }
+    .bsom-cl { font-size:10.5px; color:rgba(255,255,255,.62); font-weight:700; text-transform:uppercase; letter-spacing:.3px; margin-bottom:3px; min-height:26px; display:flex; align-items:flex-end; }
+    .bsom-cv { font-size:18px; font-weight:800; letter-spacing:-.4px; white-space:nowrap; }
+    .bsom-cd { font-size:11.5px; font-weight:800; margin-top:2px; white-space:nowrap; }
+    .bsom-cd.pos { color:#5BE595; }
+    .bsom-cd.neg { color:#FF8585; }
+    .bsom-cd.flat { color:rgba(255,255,255,.6); }
+    .bsom-bar-bg { height:10px; background:rgba(255,255,255,.18); border-radius:6px; overflow:hidden; }
+    .bsom-bar-fill { height:100%; border-radius:6px; transition:width .5s; }
+    .bsom-bar-ok { background:#2ECC71; } .bsom-bar-war { background:#FFB02E; } .bsom-bar-ov { background:#FF6B6B; }
+    .bsom-meta { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:rgba(255,255,255,.82); margin-top:8px; font-weight:600; }
+    .bsom-pace { padding:3px 9px; border-radius:7px; font-weight:800; font-size:11.5px; white-space:nowrap; }
+    .bsom-pace.ok { background:rgba(46,204,113,.22); color:#7CF0AD; }
+    .bsom-pace.warn { background:rgba(255,107,107,.2); color:#FFB3B3; }
+    .bsom-foot { margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,.15); font-size:13px; display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+    .bsom-foot .fl { color:rgba(255,255,255,.7); font-weight:600; }
+    .bsom-foot .fv { font-weight:800; text-align:right; }
+    .bsom-foot.over .fv { color:#FF8585; }
+    .bsom-delta { font-size:11px; font-weight:800; padding:2px 7px; border-radius:6px; white-space:nowrap; }
+    .bsom-delta.pos { background:rgba(46,204,113,.22); color:#7CF0AD; }
+    .bsom-delta.neg { background:rgba(255,107,107,.2); color:#FFB3B3; }
+    .bsom-delta.flat { background:rgba(255,255,255,.16); color:rgba(255,255,255,.85); }
+
     /* ── BUDGET FAMILIARE (YoY) ── */
     .bf-card { background:var(--card); border-radius:16px; padding:14px 16px; margin-bottom:10px; }
     .bf-card.tot { background:linear-gradient(135deg,#2C3E50,#34495E); color:#fff; }
@@ -356,6 +385,7 @@
 
 <!-- ══ BUDGET ══ -->
 <div class="view" id="view-budget">
+  <div id="budget-sommario"></div>
   <div class="bud-nav">
     <button class="bud-nav-btn" onclick="budgetCambiaMese(-1)">&#8249;</button>
     <span class="bud-nav-lbl" id="bud-nav-lbl"></span>
@@ -549,6 +579,11 @@ const LS_BUDGET='cassa_budget';
 const DEFAULT_BUDGET={'Abbigliamento':500,'Assicurazione Vita':72,'Auto':1200,'Casa':1500,'Camper':1500,'Cane':500,'Cerimonie':200,'Cultura / ChatGPT':500,'Fotografia':200,'Informatica':200,'Riccardo':2000,'Senza Categoria':0,'Moto':500,'Multe':2500,'Regali':1500,'Ristorante / Asporti / Bar':3000,'Salute':0,'Spesa Cibo':2000,'Sport':0,'Viaggi':0};
 let BUDGET={};
 
+// Storico spese personali 2025 (dal foglio "BUDGET PERSONALE" pre-CassaApp).
+// Totali mensili gen→dic, € positivi = uscita netta. Anno chiuso → baseline fissa.
+const SPESE_2025_MESE=[1529,1494,3168,-390,3466,1504,3142,861,1634,3303,1338,-348];
+const SPESE_2025_TOT=SPESE_2025_MESE.reduce((a,b)=>a+b,0); // 20.701
+
 let CATS=['Abbigliamento','Assicurazione Vita','Auto','Casa','Camper','Cane','Cerimonie','Cultura / ChatGPT','Fotografia','Informatica','Riccardo','Senza Categoria','Moto','Multe','Regali','Ristorante / Asporti / Bar','Salute','Spesa Cibo','Sport','Viaggi'];
 let dati=[], tipoC='incasso', pTipo='settimana', pOff=0, movEM=null, tE='incasso', saving=false;
 let datiP=[], pTipoP='settimana', pOffP=0, tipoPC='uscita', savingP=false, movEMP=null, tEP='uscita';
@@ -663,6 +698,76 @@ function renderBudget(){
   });
 
   el.innerHTML=html;
+  renderBudgetSommario();
+}
+
+/* Specchietto annuale del budget personale: budget, speso, confronto col 2025
+   (storico foglio "BUDGET PERSONALE") e proiezione stagionale sul pattern 2025.
+   Sempre sull'anno corrente, indipendente dalla navigazione mensile. */
+function renderBudgetSommario(){
+  const el=document.getElementById('budget-sommario');
+  if(!el) return;
+  const oggi=new Date();
+  const anno=oggi.getFullYear();
+  const meseIdx=oggi.getMonth();                       // 0=gen
+  const inizio=new Date(anno,0,1), fine=new Date(anno,11,31);
+  const giorniAnno=Math.round((fine-inizio)/86400000)+1;
+  const pctAnno=Math.round((Math.floor((oggi-inizio)/86400000)+1)/giorniAnno*100);
+
+  // budget annuo totale = somma dei tetti per categoria
+  let budgetTot=0;
+  CATS.forEach(c=>{ budgetTot+=(BUDGET[catName(c)]||0); });
+
+  // speso 2026 per mese (netto uscite - entrate)
+  const sp=new Array(12).fill(0);
+  datiP.forEach(m=>{
+    if(m.tipo!=='uscita'&&m.tipo!=='entrata') return;
+    const d=new Date(m.data);
+    if(d.getFullYear()===anno) sp[d.getMonth()]+=Number(m.importo)*(m.tipo==='uscita'?1:-1);
+  });
+
+  // confronto a "mesi completi": gen → mese precedente (il corrente è in corso)
+  const nComp=Math.max(meseIdx,1);                     // a giugno = 5 (gen→mag)
+  const sumN=(a,n)=>{let s=0;for(let i=0;i<n;i++)s+=a[i]||0;return s;};
+  const ytd26=sumN(sp,nComp), ytd25=sumN(SPESE_2025_MESE,nComp);
+  const deltaYtd=ytd26-ytd25, pctYtd=ytd25?deltaYtd/ytd25*100:null;
+  const lbl='gen→'+meseAbbr(nComp);
+
+  // proiezione stagionale: estrapola con il peso che il periodo aveva nel 2025
+  const w=SPESE_2025_TOT?ytd25/SPESE_2025_TOT:0;
+  const proj=w>0?ytd26/w:ytd26;
+  const dProj25=proj-SPESE_2025_TOT, pctProj25=SPESE_2025_TOT?dProj25/SPESE_2025_TOT*100:null;
+  const dProjBud=proj-budgetTot;
+
+  const pctBud=budgetTot>0?ytd26/budgetTot*100:0;
+  const barCls=pctBud>=100?'bsom-bar-ov':pctBud>=80?'bsom-bar-war':'bsom-bar-ok';
+
+  // helper: per le SPESE, meno = verde (pos), più = rosso (neg)
+  const arr=d=>d<-0.5?'↓':d>0.5?'↑':'=';
+  const cls=d=>d<-0.5?'pos':d>0.5?'neg':'flat';
+  const pc=p=>p==null?'':(Math.abs(p)<10?Math.abs(p).toFixed(1):Math.round(Math.abs(p)))+'%';
+
+  const microYtd = ytd25?`<div class="bsom-cd ${cls(deltaYtd)}">${arr(deltaYtd)} ${pc(pctYtd)} vs 2025</div>`:`<div class="bsom-cd flat">—</div>`;
+  const microProj = `<div class="bsom-cd ${cls(dProj25)}">${arr(dProj25)} ${pc(pctProj25)} vs 2025</div>`;
+  const footBadges = `<span class="bsom-delta ${cls(dProj25)}">${arr(dProj25)} ${fmtNoDec(Math.abs(dProj25))} vs 2025</span> <span class="bsom-delta ${cls(dProjBud)}">${arr(dProjBud)} ${fmtNoDec(Math.abs(dProjBud))} budget</span>`;
+
+  el.innerHTML=`<div class="bsom">
+    <div class="bsom-top">
+      <span class="bsom-tit">Quadro annuale ${anno}</span>
+      <span class="bsom-anno">anno al ${pctAnno}%</span>
+    </div>
+    <div class="bsom-grid">
+      <div><div class="bsom-cl">Budget ${anno}</div><div class="bsom-cv">${fmtNoDec(budgetTot)}</div><div class="bsom-cd flat">tetto annuo</div></div>
+      <div><div class="bsom-cl">Speso ${lbl}</div><div class="bsom-cv">${fmtNoDec(ytd26)}</div>${microYtd}</div>
+      <div><div class="bsom-cl">Stima fine ${anno}</div><div class="bsom-cv">${fmtNoDec(proj)}</div>${microProj}</div>
+    </div>
+    <div class="bsom-bar-bg"><div class="bsom-bar-fill ${barCls}" style="width:${Math.min(pctBud,100)}%"></div></div>
+    <div class="bsom-meta"><span>Speso ${Math.round(pctBud)}% del budget annuo${ytd25?' · a pari mesi 2025: '+fmtNoDec(ytd25):''}</span></div>
+    <div class="bsom-foot">
+      <span class="fl">Proiezione</span>
+      <span class="fv">${footBadges}</span>
+    </div>
+  </div>`;
 }
 
 function aggiornaBudget(inp){
