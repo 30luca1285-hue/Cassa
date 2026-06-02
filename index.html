@@ -197,6 +197,14 @@
     .bud-inp { flex:1; border:1.5px solid var(--border); border-radius:10px; padding:8px 12px; font-size:15px; font-family:inherit; color:var(--text); background:var(--bg); outline:none; text-align:right; }
     .bud-inp:focus { border-color:var(--blue); }
     .bud-save { border:none; background:var(--blue); color:#fff; border-radius:10px; padding:8px 16px; font-size:14px; font-weight:700; cursor:pointer; }
+    .bud-cmp { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--border); font-size:11.5px; color:var(--text2); }
+    .bud-cmp-l { font-weight:700; white-space:nowrap; }
+    .bud-cmp-r { font-weight:600; text-align:right; }
+    .bud-cmp-sep { opacity:.5; margin:0 1px; }
+    .bud-delta { font-weight:800; padding:1px 6px; border-radius:5px; margin-left:5px; font-size:11px; white-space:nowrap; }
+    .bud-delta.pos { color:#1a8a4a; background:rgba(46,204,113,.13); }
+    .bud-delta.neg { color:#c0392b; background:rgba(255,59,48,.10); }
+    .bud-delta.flat { color:var(--text2); background:var(--border); }
 
     /* ── BUDGET · SPECCHIETTO ANNUALE ── */
     .bsom { background:linear-gradient(135deg,#2C3E50,#34495E); color:#fff; border-radius:18px; padding:16px 18px; margin-bottom:14px; box-shadow:0 6px 20px rgba(44,62,80,.25); }
@@ -579,9 +587,31 @@ const LS_BUDGET='cassa_budget';
 const DEFAULT_BUDGET={'Abbigliamento':500,'Assicurazione Vita':72,'Auto':1200,'Casa':1500,'Camper':1500,'Cane':500,'Cerimonie':200,'Cultura / ChatGPT':500,'Fotografia':200,'Informatica':200,'Riccardo':2000,'Senza Categoria':0,'Moto':500,'Multe':2500,'Regali':1500,'Ristorante / Asporti / Bar':3000,'Salute':0,'Spesa Cibo':2000,'Sport':0,'Viaggi':0};
 let BUDGET={};
 
-// Storico spese personali 2025 (dal foglio "BUDGET PERSONALE" pre-CassaApp).
-// Totali mensili gen→dic, € positivi = uscita netta. Anno chiuso → baseline fissa.
-const SPESE_2025_MESE=[1529,1494,3168,-390,3466,1504,3142,861,1634,3303,1338,-348];
+// Storico spese personali 2025 (foglio "BUDGET PERSONALE" pre-CassaApp), per categoria.
+// 12 mesi gen→dic, € positivi = uscita netta. Anno chiuso → baseline fissa.
+const SPESE_2025_CAT={
+  "Abbigliamento":[20,0,0,11,44,0,60,28,0,90,395,0],
+  "Assicurazione Vita":[72,0,0,0,0,0,0,0,0,0,0,24],
+  "Auto":[-273,360,614,45,677,780,-30,40,483,5,8,50],
+  "Casa":[522,71,1482,23,0,20,116,116,0,0,126,169],
+  "Camper":[0,0,0,11,0,0,0,0,0,0,0,0],
+  "Cane":[37,50,0,13,0,0,0,108,23,16,33,91],
+  "Cerimonie":[0,0,0,0,0,0,202,200,6,0,0,0],
+  "Cultura / ChatGPT":[158,10,10,10,10,24,26,33,33,78,74,138],
+  "Fotografia":[148,0,0,-1100,1399,-528,727,106,186,1874,-548,-1238],
+  "Informatica":[199,-30,0,0,0,0,712,-594,0,100,214,14],
+  "Riccardo":[12,348,144,169,557,-246,233,53,117,155,209,387],
+  "Senza Categoria":[0,0,0,0,0,0,0,0,0,0,0,0],
+  "Moto":[0,0,0,0,0,0,0,0,0,0,0,0],
+  "Multe":[0,0,10,0,0,0,0,0,0,10,30,37],
+  "Regali":[45,122,61,110,169,30,0,166,0,180,205,-817],
+  "Ristorante / Asporti / Bar":[195,201,332,208,261,262,234,437,214,196,171,64],
+  "Salute":[421,242,312,0,35,21,244,0,48,198,31,48],
+  "Spesa Cibo":[203,220,223,29,191,213,487,111,154,401,390,685],
+  "Sport":[-230,-100,-20,0,0,50,0,0,0,0,0,0],
+  "Viaggi":[0,0,0,81,123,878,131,57,370,0,0,0],
+};
+const SPESE_2025_MESE=Object.values(SPESE_2025_CAT).reduce((a,m)=>(m.forEach((v,i)=>a[i]+=v),a),new Array(12).fill(0));
 const SPESE_2025_TOT=SPESE_2025_MESE.reduce((a,b)=>a+b,0); // 20.701
 
 let CATS=['Abbigliamento','Assicurazione Vita','Auto','Casa','Camper','Cane','Cerimonie','Cultura / ChatGPT','Fotografia','Informatica','Riccardo','Senza Categoria','Moto','Multe','Regali','Ristorante / Asporti / Bar','Salute','Spesa Cibo','Sport','Viaggi'];
@@ -653,6 +683,19 @@ function renderBudget(){
     }
   });
 
+  // confronto YoY per categoria a pari mesi completi (gen→mese prec.), solo sull'anno corrente
+  const annoCorr=new Date().getFullYear();
+  const nComp=Math.max(new Date().getMonth(),1);
+  const lblYoY='gen→'+meseAbbr(nComp);
+  const sp26cat={};
+  if(anno===annoCorr){
+    datiP.forEach(m=>{
+      if(m.tipo!=='uscita'&&m.tipo!=='entrata') return;
+      const d=new Date(m.data);
+      if(d.getFullYear()===annoCorr && d.getMonth()<nComp) sp26cat[m.categoria]=(sp26cat[m.categoria]||0)+Number(m.importo)*(m.tipo==='uscita'?1:-1);
+    });
+  }
+
   const el=document.getElementById('budget-list');
   let html='';
 
@@ -671,6 +714,22 @@ function renderBudget(){
     const rimColor=rimanente<0?'var(--red)':rimanente<bAnn*0.2?'#FF9500':'var(--green)';
     const rimMColor=rimanenteMese<0?'var(--red)':rimanenteMese<bMese*0.2?'#FF9500':'var(--green)';
 
+    // riga confronto col 2025 a pari mesi (stesso periodo dello specchietto)
+    let cmpHtml='';
+    if(anno===annoCorr && SPESE_2025_CAT[cat]){
+      const cum25=SPESE_2025_CAT[cat].slice(0,nComp).reduce((a,b)=>a+b,0);
+      const cum26=sp26cat[cat]||0;
+      if(Math.abs(cum25)>=1||Math.abs(cum26)>=1){
+        const dl=cum26-cum25;
+        const dCls=dl<-0.5?'pos':dl>0.5?'neg':'flat';
+        const dArr=dl<-0.5?'↓':dl>0.5?'↑':'=';
+        cmpHtml=`<div class="bud-cmp">
+        <span class="bud-cmp-l">vs 2025 · ${lblYoY}</span>
+        <span class="bud-cmp-r">${fmtNoDec(cum26)} <span class="bud-cmp-sep">vs</span> ${fmtNoDec(cum25)} <span class="bud-delta ${dCls}">${dArr} ${fmtNoDec(Math.abs(dl))}</span></span>
+      </div>`;
+      }
+    }
+
     html+=`<div class="bud-card">
       <div class="bud-head">
         <span class="bud-cat">${esc(cat)}</span>
@@ -681,6 +740,7 @@ function renderBudget(){
         <span>Netto ${anno}: <strong>${fmt(sAnno)}</strong></span>
         <span style="color:${rimColor}">Rimane: <strong>${fmt(rimanente)}</strong></span>
       </div>
+      ${cmpHtml}
       <div class="bud-mese">
         <span class="bud-mese-lbl">${nomeMese}</span>
         <div style="display:flex;align-items:center;gap:10px;">
