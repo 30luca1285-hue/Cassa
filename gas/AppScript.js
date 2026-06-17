@@ -114,6 +114,10 @@ function doGet(e) {
   else if (action === 'set_budget_fam')risultato = salvaBudgetFam(e.parameter);
   else if (action === 'del_spesa_fam') risultato = eliminaSpesaFam(e.parameter);
   else if (action === 'setup_fam')     risultato = setupFamCore();
+  else if (action === 'set_token')     risultato = setSplitwiseTokenSafe(e.parameter);
+  else if (action === 'sync_splitwise')risultato = aggiornaDaSplitwise();
+  else if (action === 'install_trigger')risultato = installaTriggerSplitwise();
+  else if (action === 'list_triggers') risultato = elencoTriggers();
   else                                 risultato = { success: false, error: 'Azione sconosciuta: ' + action };
 
   const json = JSON.stringify(risultato);
@@ -372,7 +376,7 @@ function setupFoglioCategorie() {
   foglio.setColumnWidth(1, 260);
   foglio.setFrozenRows(1);
   if (foglio.getLastRow() <= 1) {
-    const defCats = ['Abbigliamento','Assicurazione Vita','Auto','Casa','Camper','Cane','Cerimonie','Cultura / ChatGPT','Fotografia','Informatica','Riccardo','Senza Categoria','Moto','Multe','Regali','Ristorante / Asporti / Bar','Salute','Spesa Cibo','Sport','Viaggi'];
+    const defCats = ['Abbigliamento','Assicurazione Vita','Auto','Casa','Cane','Cerimonie','Cultura / ChatGPT','Fotografia','Informatica','Riccardo','Senza Categoria','Moto','Multe','Regali','Ristorante / Asporti / Bar','Salute','Spesa Cibo','Sport','Viaggi'];
     defCats.forEach((c, i) => foglio.getRange(i + 2, 1).setValue(c));
   }
   SpreadsheetApp.getUi().alert('Foglio "Categorie" configurato!');
@@ -646,4 +650,148 @@ function eliminaSpesaFam(params) {
   } catch (err) {
     return { success: false, error: err.toString() };
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SPLITWISE SYNC — Aggiornamento automatico dati 2026
+// ═══════════════════════════════════════════════════════════════════
+
+// Mapping gruppi Splitwise → categorie del Budget Familiare
+const SPLITWISE_MAPPING = {
+  'Auto':       [92066736],
+  'Casa':       [92066790],
+  'Regali':     [92066837, 93886585],
+  'Riccardo':   [92066860],
+  'Ristoranti': [92004523],
+  'Spesa Cibo': [92066881],
+  'Spritz':     [92066901],
+  'Viaggi':     [92066921]
+};
+const SPLITWISE_ID_LUCA  = 8058310;
+const SPLITWISE_ID_ERIKA = 43041864;
+
+// Salva token Splitwise nelle Script Properties (guard: solo se non esiste o force=true)
+function setSplitwiseTokenSafe(params) {
+  const props = PropertiesService.getScriptProperties();
+  const cur = props.getProperty('SPLITWISE_TOKEN');
+  if (cur && params.force !== 'true') {
+    return { success: false, error: 'Token già impostato. Usa force=true per sovrascrivere.' };
+  }
+  const t = (params.token || '').toString().trim();
+  if (!t || t.length < 20) return { success: false, error: 'Token mancante o troppo corto.' };
+  props.setProperty('SPLITWISE_TOKEN', t);
+  return { success: true, message: 'Token salvato (' + t.length + ' caratteri).' };
+}
+
+// Aggiorna foglio SpeseFamiliari leggendo da Splitwise
+function aggiornaDaSplitwise() {
+  try {
+    const token = PropertiesService.getScriptProperties().getProperty('SPLITWISE_TOKEN');
+    if (!token) return { success: false, error: 'Token Splitwise non configurato.' };
+
+    const anno = new Date().getFullYear();
+    const datedAfter = (anno - 1) + '-12-31T00:00:00Z';
+    const datedBefore = (anno + 1) + '-01-01T00:00:00Z';
+
+    const headers = { 'Authorization': 'Bearer ' + token };
+    const aggregato = {};
+
+    for (const cat of Object.keys(SPLITWISE_MAPPING)) {
+      aggregato[cat] = {
+        tot: new Array(12).fill(0),
+        E:   new Array(12).fill(0),
+        L:   new Array(12).fill(0)
+      };
+      for (const gid of SPLITWISE_MAPPING[cat]) {
+        const url = 'https://secure.splitwise.com/api/v3.0/get_expenses?group_id=' + gid +
+                    '&dated_after=' + encodeURIComponent(datedAfter) +
+                    '&dated_before=' + encodeURIComponent(datedBefore) +
+                    '&limit=500';
+        const resp = UrlFetchApp.fetch(url, { headers: headers, muteHttpExceptions: true });
+        if (resp.getResponseCode() !== 200) {
+          return { success: false, error: 'API Splitwise HTTP ' + resp.getResponseCode() + ' su gruppo ' + gid };
+        }
+        const data = JSON.parse(resp.getContentText());
+        for (const e of (data.expenses || [])) {
+          if (e.deleted_at) continue;
+          if (e.payment) continue;
+          const d = new Date(e.date);
+          if (d.getFullYear() !== anno) continue;
+          const m = d.getMonth(); // 0-based
+          const cost = parseFloat(e.cost) || 0;
+          aggregato[cat].tot[m] += cost;
+          for (const u of (e.users || [])) {
+            const paid = parseFloat(u.paid_share) || 0;
+            if (u.user_id === SPLITWISE_ID_LUCA) aggregato[cat].L[m] += paid;
+            else if (u.user_id === SPLITWISE_ID_ERIKA) aggregato[cat].E[m] += paid;
+          }
+        }
+      }
+    }
+
+    // Scrivi nel foglio SpeseFamiliari
+    let aggiornate = 0;
+    for (const cat of Object.keys(aggregato)) {
+      for (let m = 0; m < 12; m++) {
+        const tot = Math.round(aggregato[cat].tot[m] * 100) / 100;
+        const E   = Math.round(aggregato[cat].E[m]   * 100) / 100;
+        const L   = Math.round(aggregato[cat].L[m]   * 100) / 100;
+        // Skip mesi senza spese se anche il record nel foglio è 0/assente
+        if (tot === 0 && E === 0 && L === 0) {
+          // Comunque azzera (per consistenza) — passa solo se la cella non esiste
+        }
+        salvaSpesaFam({
+          categoria: cat,
+          anno: anno,
+          mese: m + 1,
+          importo: tot,
+          importoE: E,
+          importoL: L
+        });
+        aggiornate++;
+      }
+    }
+
+    // Salva ultima sync
+    PropertiesService.getScriptProperties().setProperty('SPLITWISE_LAST_SYNC', new Date().toISOString());
+
+    return {
+      success: true,
+      anno: anno,
+      righe_aggiornate: aggiornate,
+      timestamp: new Date().toISOString()
+    };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// Installa Time-driven Trigger giornaliero per aggiornaDaSplitwise
+function installaTriggerSplitwise() {
+  // Rimuovi eventuali trigger esistenti per evitare duplicati
+  const existing = ScriptApp.getProjectTriggers();
+  let removed = 0;
+  existing.forEach(t => {
+    if (t.getHandlerFunction() === 'aggiornaDaSplitwise') {
+      ScriptApp.deleteTrigger(t);
+      removed++;
+    }
+  });
+  // Crea trigger ogni giorno alle 03:00 (timezone del progetto = Europe/Rome)
+  ScriptApp.newTrigger('aggiornaDaSplitwise')
+    .timeBased()
+    .everyDays(1)
+    .atHour(3)
+    .create();
+  return { success: true, message: 'Trigger installato (giornaliero alle 03:00). Rimossi ' + removed + ' duplicati.' };
+}
+
+function elencoTriggers() {
+  const triggers = ScriptApp.getProjectTriggers().map(t => ({
+    handler: t.getHandlerFunction(),
+    type: t.getEventType().toString(),
+    source: t.getTriggerSource().toString()
+  }));
+  const last = PropertiesService.getScriptProperties().getProperty('SPLITWISE_LAST_SYNC');
+  return { success: true, triggers: triggers, last_sync: last };
 }

@@ -584,7 +584,7 @@
 const LS_KEY='cassa_movimenti', LS_SYNC='cassa_last_sync', LS_OBJ='cassa_obiettivo';
 const LS_P='personale_movimenti', LS_SP='personale_last_sync', LS_URL='cassa_script_url';
 const LS_BUDGET='cassa_budget';
-const DEFAULT_BUDGET={'Abbigliamento':500,'Assicurazione Vita':72,'Auto':1200,'Casa':1500,'Camper':1500,'Cane':500,'Cerimonie':200,'Cultura / ChatGPT':500,'Fotografia':200,'Informatica':200,'Riccardo':2000,'Senza Categoria':0,'Moto':500,'Multe':2500,'Regali':1500,'Ristorante / Asporti / Bar':3000,'Salute':0,'Spesa Cibo':2000,'Sport':0,'Viaggi':0};
+const DEFAULT_BUDGET={'Abbigliamento':500,'Assicurazione Vita':72,'Auto':1200,'Casa':1500,'Cane':500,'Cerimonie':200,'Cultura / ChatGPT':500,'Fotografia':200,'Informatica':200,'Riccardo':2000,'Senza Categoria':0,'Moto':500,'Multe':2500,'Regali':1500,'Ristorante / Asporti / Bar':3000,'Salute':0,'Spesa Cibo':2000,'Sport':0,'Viaggi':0};
 let BUDGET={};
 
 // Storico spese personali 2025 (foglio "BUDGET PERSONALE" pre-CassaApp), per categoria.
@@ -593,8 +593,7 @@ const SPESE_2025_CAT={
   "Abbigliamento":[20,0,0,11,44,0,60,28,0,90,395,0],
   "Assicurazione Vita":[72,0,0,0,0,0,0,0,0,0,0,24],
   "Auto":[-273,360,614,45,677,780,-30,40,483,5,8,50],
-  "Casa":[522,71,1482,23,0,20,116,116,0,0,126,169],
-  "Camper":[0,0,0,11,0,0,0,0,0,0,0,0],
+  "Casa":[522,71,1482,34,0,20,116,116,0,0,126,169],
   "Cane":[37,50,0,13,0,0,0,108,23,16,33,91],
   "Cerimonie":[0,0,0,0,0,0,202,200,6,0,0,0],
   "Cultura / ChatGPT":[158,10,10,10,10,24,26,33,33,78,74,138],
@@ -614,7 +613,7 @@ const SPESE_2025_CAT={
 const SPESE_2025_MESE=Object.values(SPESE_2025_CAT).reduce((a,m)=>(m.forEach((v,i)=>a[i]+=v),a),new Array(12).fill(0));
 const SPESE_2025_TOT=SPESE_2025_MESE.reduce((a,b)=>a+b,0); // 20.701
 
-let CATS=['Abbigliamento','Assicurazione Vita','Auto','Casa','Camper','Cane','Cerimonie','Cultura / ChatGPT','Fotografia','Informatica','Riccardo','Senza Categoria','Moto','Multe','Regali','Ristorante / Asporti / Bar','Salute','Spesa Cibo','Sport','Viaggi'];
+let CATS=['Abbigliamento','Assicurazione Vita','Auto','Casa','Cane','Cerimonie','Cultura / ChatGPT','Fotografia','Informatica','Riccardo','Senza Categoria','Moto','Multe','Regali','Ristorante / Asporti / Bar','Salute','Spesa Cibo','Sport','Viaggi'];
 let dati=[], tipoC='incasso', pTipo='settimana', pOff=0, movEM=null, tE='incasso', saving=false;
 let datiP=[], pTipoP='settimana', pOffP=0, tipoPC='uscita', savingP=false, movEMP=null, tEP='uscita';
 let viewAttiva='home';
