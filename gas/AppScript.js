@@ -32,6 +32,7 @@ const NOME_FOGLIO_PERSONALE    = 'Personale';
 const NOME_FOGLIO_CATEGORIE    = 'Categorie';
 const NOME_FOGLIO_BUDGET_FAM   = 'BudgetFamiliare';
 const NOME_FOGLIO_SPESE_FAM    = 'SpeseFamiliari';
+const NOME_FOGLIO_PRESTITO     = 'Prestito';
 
 // Categorie del budget familiare (allineate ai gruppi Splitwise)
 const CATEGORIE_FAM = ['Auto','Casa','Spritz','Riccardo','Regali','Ristoranti','Spesa Cibo','Viaggi'];
@@ -118,6 +119,9 @@ function doGet(e) {
   else if (action === 'sync_splitwise')risultato = aggiornaDaSplitwise();
   else if (action === 'install_trigger')risultato = installaTriggerSplitwise();
   else if (action === 'list_triggers') risultato = elencoTriggers();
+  else if (action === 'get_prestito')  risultato = leggiPrestito();
+  else if (action === 'add_prestito')  risultato = aggiungiPrestito(e.parameter);
+  else if (action === 'del_prestito')  risultato = eliminaPrestito(e.parameter.id);
   else                                 risultato = { success: false, error: 'Azione sconosciuta: ' + action };
 
   const json = JSON.stringify(risultato);
@@ -358,6 +362,104 @@ function leggiPersonale() {
       });
 
     return { success: true, data: movimenti };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PRESTITO AZIENDA → conto temporaneo di rientro del debito
+//  Foglio: ID | Data | Tipo (rata|extra) | Importo (€) | Nota
+//  Il foglio si crea da solo al primo utilizzo: nessun setup manuale.
+// ═══════════════════════════════════════════════════════════════════
+
+function getFoglioPrestito(creaSeManca) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let foglio = ss.getSheetByName(NOME_FOGLIO_PRESTITO);
+  if (!foglio && creaSeManca) {
+    foglio = ss.insertSheet(NOME_FOGLIO_PRESTITO);
+    const intestazioni = ['ID', 'Data', 'Tipo', 'Importo (€)', 'Nota'];
+    const primaRiga = foglio.getRange(1, 1, 1, intestazioni.length);
+    primaRiga.setValues([intestazioni]);
+    primaRiga.setFontWeight('bold');
+    primaRiga.setBackground('#6A1B9A');
+    primaRiga.setFontColor('white');
+    foglio.setColumnWidth(1, 160);
+    foglio.setColumnWidth(2, 110);
+    foglio.setColumnWidth(3, 90);
+    foglio.setColumnWidth(4, 110);
+    foglio.setColumnWidth(5, 250);
+    foglio.setFrozenRows(1);
+  }
+  return foglio;
+}
+
+// ── Aggiunge un versamento di rientro ──
+function aggiungiPrestito(params) {
+  try {
+    const id      = params.id   || Date.now().toString();
+    const data    = params.data || '';
+    const tipo    = (params.tipo === 'extra') ? 'extra' : 'rata';
+    const importo = parseFloat(params.importo) || 0;
+    const nota    = params.nota || '';
+
+    if (!data || importo <= 0)
+      return { success: false, error: 'Parametri mancanti o non validi' };
+
+    const foglio = getFoglioPrestito(true);
+    foglio.appendRow([id, data, tipo, importo, nota]);
+    const ultimaRiga = foglio.getLastRow();
+    foglio.getRange(ultimaRiga, 1, 1, 5).setBackground(tipo === 'extra' ? '#E1F5FE' : '#F3E5F5');
+    foglio.getRange(ultimaRiga, 4).setNumberFormat('€#,##0.00');
+
+    return { success: true, id: id };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// ── Legge i versamenti di rientro ──
+function leggiPrestito() {
+  try {
+    const foglio = getFoglioPrestito(false);
+    if (!foglio) return { success: true, data: [] };
+
+    const dati = foglio.getDataRange().getValues();
+    if (dati.length <= 1) return { success: true, data: [] };
+
+    const versamenti = dati.slice(1)
+      .filter(r => r[0] !== '')
+      .map(r => ({
+        id:      r[0].toString(),
+        data:    formattaData(r[1]),
+        tipo:    r[2] ? r[2].toString() : 'rata',
+        importo: parseFloat(r[3]) || 0,
+        nota:    r[4] ? r[4].toString() : ''
+      }))
+      .sort((a, b) => {
+        const da = new Date(a.data), db = new Date(b.data);
+        return db - da || b.id.localeCompare(a.id);
+      });
+
+    return { success: true, data: versamenti };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// ── Elimina un versamento ──
+function eliminaPrestito(id) {
+  try {
+    const foglio = getFoglioPrestito(false);
+    if (!foglio) return { success: false, error: 'Foglio "Prestito" non trovato' };
+    const dati = foglio.getDataRange().getValues();
+    for (let i = 1; i < dati.length; i++) {
+      if (dati[i][0].toString() === id.toString()) {
+        foglio.deleteRow(i + 1);
+        return { success: true };
+      }
+    }
+    return { success: false, error: 'Record non trovato' };
   } catch (err) {
     return { success: false, error: err.toString() };
   }

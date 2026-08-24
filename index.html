@@ -186,6 +186,27 @@
     .bud-ann { font-size:13px; color:var(--text2); }
     .bud-bar-bg { height:8px; background:var(--border); border-radius:6px; overflow:hidden; margin-bottom:8px; }
     .bud-bar-fill { height:100%; border-radius:6px; transition:width .4s; }
+    /* ── Prestito ── */
+    .pr-hero { background:linear-gradient(135deg,#5E5CE6,#007AFF); border-radius:16px; padding:18px 18px 16px; color:#fff; }
+    .pr-hero.done { background:linear-gradient(135deg,#30D158,#34C759); }
+    .pr-lbl { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; opacity:.85; }
+    .pr-big { font-size:38px; font-weight:800; letter-spacing:-1px; margin:2px 0 10px; }
+    .pr-bar-bg { height:10px; background:rgba(255,255,255,.25); border-radius:6px; overflow:hidden; margin-bottom:8px; }
+    .pr-bar-fill { height:100%; background:#fff; border-radius:6px; transition:width .4s; }
+    .pr-sub { display:flex; justify-content:space-between; font-size:13px; font-weight:600; opacity:.95; }
+    .pr-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:12px; }
+    .pr-st { background:var(--card); border-radius:14px; padding:12px 10px; text-align:center; }
+    .pr-st-v { font-size:19px; font-weight:800; color:var(--text); letter-spacing:-.4px; }
+    .pr-st-l { font-size:11px; color:var(--text2); font-weight:600; margin-top:2px; }
+    .pr-row { display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--border); }
+    .pr-row:last-child { border-bottom:none; }
+    .pr-ic { width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+    .pr-ic.rata { background:#F3E5F5; } .pr-ic.extra { background:#E1F5FE; }
+    .pr-info { flex:1; min-width:0; }
+    .pr-d { font-size:15px; font-weight:600; color:var(--text); }
+    .pr-n { font-size:12px; color:var(--text2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pr-imp { font-size:16px; font-weight:700; color:var(--blue); white-space:nowrap; }
+    .pr-empty { text-align:center; color:var(--text2); font-size:14px; padding:22px 0; }
     .bud-fill-ok  { background:var(--green); }
     .bud-fill-war { background:#FF9500; }
     .bud-fill-ov  { background:var(--red); }
@@ -415,6 +436,56 @@
   </div>
 </div>
 
+<!-- ══ PRESTITO AZIENDA ══ -->
+<div class="view" id="view-prestito">
+  <div id="pr-testata"></div>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:14px 0;">
+    <button class="btn-inc" onclick="apriModalPR('rata')" style="margin-bottom:0;"><span class="btn-ic">↩</span> Rata</button>
+    <button class="btn-spe" onclick="apriModalPR('extra')" style="background:linear-gradient(135deg,#5E5CE6,#007AFF);"><span class="btn-ic">+</span> Extra</button>
+  </div>
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div class="ctit" style="margin-bottom:0;">Versamenti</div>
+      <button onclick="apriModalPRCfg()" style="background:none;border:none;color:var(--blue);font-size:14px;font-weight:600;cursor:pointer;padding:0;">Modifica piano</button>
+    </div>
+    <div id="pr-lista"></div>
+  </div>
+</div>
+
+<!-- MODAL VERSAMENTO PRESTITO -->
+<div class="ov" id="ov-pr" onclick="closeBg('ov-pr',event)">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtit" id="pr-mtit">Rata mensile</div>
+    <div class="campo"><label>Data</label><input type="date" id="pr-data"/></div>
+    <div class="campo"><label>Importo (€)</label><input type="number" id="pr-imp" class="big" placeholder="0,00" inputmode="decimal" step="0.01" min="0"/></div>
+    <div class="campo"><label>Nota (opzionale)</label><textarea id="pr-nota" placeholder="Descrizione..."></textarea></div>
+    <button class="bok b" id="pr-salva" onclick="salvaPR()">Registra versamento</button>
+  </div>
+</div>
+
+<!-- MODAL PIANO PRESTITO -->
+<div class="ov" id="ov-prcfg" onclick="closeBg('ov-prcfg',event)">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtit">Piano di rientro</div>
+    <div class="campo"><label>Capitale ricevuto (€)</label><input type="number" id="prc-cap" class="big" inputmode="decimal" step="0.01" min="0"/></div>
+    <div class="campo"><label>Rata mensile (€)</label><input type="number" id="prc-rata" inputmode="decimal" step="0.01" min="0"/></div>
+    <div class="campo"><label>Descrizione</label><input type="text" id="prc-desc" placeholder="Prestito azienda"/></div>
+    <button class="bok b" onclick="salvaPRCfg()">Salva piano</button>
+  </div>
+</div>
+
+<!-- MODAL ELIMINA VERSAMENTO -->
+<div class="ov" id="ov-prdel" onclick="closeBg('ov-prdel',event)">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtit">Elimina versamento</div>
+    <div id="prdel-txt" style="color:var(--text2);font-size:15px;margin-bottom:16px;"></div>
+    <button class="bdel" onclick="confermaEliminaPR()">Elimina</button>
+  </div>
+</div>
+
 <!-- ══ IMPOSTAZIONI ══ -->
 <div class="view" id="view-settings">
   <div style="margin-top:2px;">
@@ -478,6 +549,9 @@
   </button>
   <button class="tbb" onclick="showView('budget-fam',this)">
     <span class="ti">👨‍👩‍👦</span><span class="tl">Familiare</span>
+  </button>
+  <button class="tbb" onclick="showView('prestito',this)">
+    <span class="ti">🏦</span><span class="tl">Prestito</span>
   </button>
   <button class="tbb" onclick="showView('settings',this)">
     <span class="ti">⚙️</span><span class="tl">Impostazioni</span>
@@ -837,7 +911,7 @@ function aggiornaBudget(inp){
 
 /* ── INIT ── */
 document.addEventListener('DOMContentLoaded',()=>{
-  dati=load(); loadBudget(); loadBudgetFam(); loadSpeseFam(); initP(); setOggi(); aggTutto();
+  dati=load(); loadBudget(); loadBudgetFam(); loadSpeseFam(); loadPR(); initP(); setOggi(); aggTutto();
   document.getElementById('inp-ob').value=getOb();
   syncTutti(true);
 });
@@ -852,8 +926,9 @@ function showView(n,b){
   if(n==='personale'){renderCatSum();renderLP();}
   if(n==='budget'){renderBudget();}
   if(n==='budget-fam'){renderBudgetFam();}
-  const isP=n==='personale', isB=n==='budget', isBF=n==='budget-fam';
-  const title=isP?'Spese Personali':isB?'Budget':isBF?'Budget Familiare':'Cassa Aziendale';
+  if(n==='prestito'){renderPrestito();}
+  const isP=n==='personale', isB=n==='budget', isBF=n==='budget-fam', isPR=n==='prestito';
+  const title=isP?'Spese Personali':isB?'Budget':isBF?'Budget Familiare':isPR?'Prestito Azienda':'Cassa Aziendale';
   document.getElementById('hdr-title').textContent=title;
   if(isP) aggSaldoP(); else aggSaldo();
   aggBilancioNetto();
@@ -1089,6 +1164,7 @@ function syncTutti(silent){
   sync(silent);
   apiCall('get_personal').then(r=>mergeP(r,silent)).catch(()=>{});
   syncBudgetFam(silent);
+  syncPrestito(silent);
 }
 function syncDot(s){
   const el=document.getElementById('stato-sync');
@@ -1711,6 +1787,136 @@ function syncBudgetFam(silent){
     localStorage.setItem(LS_SBF,new Date().toISOString());
     if(viewAttiva==='budget-fam')renderBudgetFam();
     if(!silent)toast('Budget familiare sincronizzato');
+  }).catch(()=>{});
+}
+
+/* ══════════════════════════════════════════════════════════
+   PRESTITO AZIENDA — conto temporaneo di rientro del debito
+   ══════════════════════════════════════════════════════════ */
+const LS_PR='prestito_versamenti', LS_PR_CFG='prestito_config', LS_SPR='prestito_last_sync';
+const PR_CFG_DEFAULT={capitale:15000, rata:650, desc:'Prestito azienda'};
+let PR_CFG={...PR_CFG_DEFAULT}, PRV=[], prTipoC='rata', prDelId=null, savingPR=false;
+
+function loadPR(){
+  try{const s=localStorage.getItem(LS_PR_CFG);PR_CFG=s?{...PR_CFG_DEFAULT,...JSON.parse(s)}:{...PR_CFG_DEFAULT};}
+  catch(e){PR_CFG={...PR_CFG_DEFAULT};}
+  try{PRV=JSON.parse(localStorage.getItem(LS_PR))||[];}catch(e){PRV=[];}
+}
+function savePR(){try{localStorage.setItem(LS_PR,JSON.stringify(PRV));}catch(e){}}
+function savePRCfg(){localStorage.setItem(LS_PR_CFG,JSON.stringify(PR_CFG));}
+
+function prTotali(){
+  const restituito=PRV.reduce((a,v)=>a+(parseFloat(v.importo)||0),0);
+  const capitale=parseFloat(PR_CFG.capitale)||0;
+  const residuo=Math.max(0,capitale-restituito);
+  const perc=capitale>0?Math.min(100,restituito/capitale*100):0;
+  const rata=parseFloat(PR_CFG.rata)||0;
+  const rateRim=(rata>0&&residuo>0)?Math.ceil(residuo/rata):0;
+  return {restituito,capitale,residuo,perc,rata,rateRim};
+}
+function prDataFine(rateRim){
+  if(rateRim<=0)return '—';
+  const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+rateRim);
+  return d.toLocaleDateString('it-IT',{month:'short',year:'numeric'});
+}
+
+function renderPrestito(){
+  const t=prTotali(), estinto=t.residuo<=0.005;
+  document.getElementById('pr-testata').innerHTML=`
+    <div class="pr-hero${estinto?' done':''}">
+      <div class="pr-lbl">${esc(PR_CFG.desc||'Prestito')} · ${estinto?'estinto':'ancora da restituire'}</div>
+      <div class="pr-big">${estinto?'Estinto 🎉':fmt(t.residuo)}</div>
+      <div class="pr-bar-bg"><div class="pr-bar-fill" style="width:${t.perc}%"></div></div>
+      <div class="pr-sub"><span>${fmt(t.restituito)} restituiti</span><span>${t.perc.toFixed(1)}% di ${fmt(t.capitale)}</span></div>
+    </div>
+    <div class="pr-stats">
+      <div class="pr-st"><div class="pr-st-v">${PRV.length}</div><div class="pr-st-l">versamenti</div></div>
+      <div class="pr-st"><div class="pr-st-v">${estinto?'0':t.rateRim}</div><div class="pr-st-l">rate mancanti</div></div>
+      <div class="pr-st"><div class="pr-st-v" style="font-size:15px;">${estinto?'—':prDataFine(t.rateRim)}</div><div class="pr-st-l">fine stimata</div></div>
+    </div>`;
+
+  const lista=document.getElementById('pr-lista');
+  if(!PRV.length){ lista.innerHTML='<div class="pr-empty">Nessun versamento registrato.<br>Usa «Rata» ogni mese, «Extra» per i versamenti più grandi.</div>'; return; }
+  const ord=[...PRV].sort((a,b)=>{const da=pd(a.data)||new Date(0),db=pd(b.data)||new Date(0);return db-da||String(b.id).localeCompare(String(a.id));});
+  lista.innerHTML=ord.map(v=>`
+    <div class="pr-row" onclick="apriEliminaPR('${v.id}')">
+      <div class="pr-ic ${v.tipo==='extra'?'extra':'rata'}">${v.tipo==='extra'?'⚡':'↩'}</div>
+      <div class="pr-info">
+        <div class="pr-d">${fmtD(v.data)}</div>
+        <div class="pr-n">${v.tipo==='extra'?'Versamento extra':'Rata mensile'}${v.nota?' · '+esc(v.nota):''}</div>
+      </div>
+      <div class="pr-imp">${fmt(v.importo)}</div>
+    </div>`).join('');
+}
+
+function apriModalPR(tipo){
+  prTipoC=tipo;
+  document.getElementById('pr-mtit').textContent=tipo==='extra'?'Versamento extra':'Rata mensile';
+  const d=new Date();
+  document.getElementById('pr-data').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  document.getElementById('pr-imp').value=tipo==='rata'?(parseFloat(PR_CFG.rata)||''):'';
+  document.getElementById('pr-nota').value='';
+  document.getElementById('ov-pr').classList.add('show');
+  setTimeout(()=>document.getElementById('pr-imp').focus(),300);
+}
+function salvaPR(){
+  if(savingPR)return;
+  const data=document.getElementById('pr-data').value;
+  const imp=parseFloat(document.getElementById('pr-imp').value);
+  const nota=document.getElementById('pr-nota').value.trim();
+  if(!data||!imp||imp<=0){toast('Inserisci data e importo');return;}
+  savingPR=true; document.getElementById('pr-salva').disabled=true;
+  const v={id:Date.now().toString(),data,tipo:prTipoC,importo:imp,nota};
+  PRV.push(v); savePR(); renderPrestito();
+  document.getElementById('ov-pr').classList.remove('show');
+  const t=prTotali();
+  toast(t.residuo<=0.005?'Prestito estinto! 🎉':'Registrato — restano '+fmt(t.residuo));
+  if(getUrl()) apiCall('add_prestito',{id:v.id,data:v.data,tipo:v.tipo,importo:v.importo.toString(),nota:v.nota}).catch(()=>{});
+  savingPR=false; document.getElementById('pr-salva').disabled=false;
+}
+function apriEliminaPR(id){
+  prDelId=id;
+  const v=PRV.find(x=>String(x.id)===String(id)); if(!v)return;
+  document.getElementById('prdel-txt').textContent=fmtD(v.data)+' · '+fmt(v.importo)+' ('+(v.tipo==='extra'?'extra':'rata')+')';
+  document.getElementById('ov-prdel').classList.add('show');
+}
+function confermaEliminaPR(){
+  if(!prDelId)return;
+  PRV=PRV.filter(x=>String(x.id)!==String(prDelId));
+  savePR(); renderPrestito();
+  document.getElementById('ov-prdel').classList.remove('show');
+  if(getUrl()) apiCall('del_prestito',{id:prDelId}).catch(()=>{});
+  prDelId=null; toast('Versamento eliminato');
+}
+function apriModalPRCfg(){
+  document.getElementById('prc-cap').value=PR_CFG.capitale;
+  document.getElementById('prc-rata').value=PR_CFG.rata;
+  document.getElementById('prc-desc').value=PR_CFG.desc||'';
+  document.getElementById('ov-prcfg').classList.add('show');
+}
+function salvaPRCfg(){
+  const cap=parseFloat(document.getElementById('prc-cap').value);
+  const rata=parseFloat(document.getElementById('prc-rata').value);
+  if(!cap||cap<=0){toast('Capitale non valido');return;}
+  PR_CFG.capitale=cap;
+  PR_CFG.rata=rata>0?rata:0;
+  PR_CFG.desc=document.getElementById('prc-desc').value.trim()||'Prestito azienda';
+  savePRCfg(); renderPrestito();
+  document.getElementById('ov-prcfg').classList.remove('show');
+  toast('Piano aggiornato');
+}
+function syncPrestito(silent){
+  if(!getUrl())return;
+  apiCall('get_prestito').then(r=>{
+    if(!r||!r.success||!Array.isArray(r.data))return;
+    const ids=new Set(r.data.map(v=>String(v.id)));
+    const miss=PRV.filter(v=>!ids.has(String(v.id)));
+    miss.forEach(v=>apiCall('add_prestito',{id:v.id,data:v.data,tipo:v.tipo,importo:v.importo.toString(),nota:v.nota||''}).catch(()=>{}));
+    PRV=[...r.data.map(v=>({...v,importo:parseFloat(v.importo)||0})),...miss];
+    savePR();
+    localStorage.setItem(LS_SPR,new Date().toISOString());
+    if(viewAttiva==='prestito')renderPrestito();
+    if(!silent&&miss.length)toast('Prestito: '+miss.length+' recuperati');
   }).catch(()=>{});
 }
 
