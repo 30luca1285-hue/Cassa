@@ -521,7 +521,7 @@
 
     <div class="card">
       <div class="ctit">Versione</div>
-      <div class="sr"><span class="sl">Build</span><span class="sv">v1.9 · proiezione-fine-anno</span></div>
+      <div class="sr"><span class="sl">Build</span><span class="sv">v2.0 · fix-duplicati</span></div>
     </div>
 
     <div class="card">
@@ -714,6 +714,32 @@ function apiCall(action, params={}){
   const url=getUrl();
   if(!url) return Promise.reject(new Error('URL non configurato'));
   return jsonpFetch(url,{action,...params});
+}
+
+/* ── ADD AFFIDABILE (25/08/2026) ──
+   Prima: un 'add' che falliva o che tardava restava a metà — il movimento viveva solo in
+   locale, e il sync successivo lo ri-mandava creando una riga doppia sul foglio.
+   Ora: 1 retry automatico, e finché la chiamata è in volo l'id sta in inFlight, così il
+   sync non lo considera "mancante sul server" e non lo re-invia. Il server, dal canto suo,
+   ignora un id già scritto (aggiungiMovimento è diventato idempotente). */
+const inFlight=new Set();
+function apiAdd(action, params, id){
+  inFlight.add(id);
+  const tenta=(n)=>apiCall(action,params).catch(e=>{
+    if(n>0) return new Promise(r=>setTimeout(r,2500)).then(()=>tenta(n-1));
+    throw e;
+  });
+  return tenta(1).finally(()=>inFlight.delete(id));
+}
+
+/* Un movimento uguale (stesso tipo, stesso importo, stessa data) inserito da meno di 3
+   minuti è quasi sempre un doppione: prima si chiedeva niente e ci si ritrovava con due righe. */
+function sospettoDoppione(lista, m, campoTipo='tipo'){
+  const ora=Date.now();
+  return lista.some(x=>
+    x[campoTipo]===m[campoTipo] && Number(x.importo)===Number(m.importo) && x.data===m.data &&
+    (ora-Number(x.id))<180000
+  );
 }
 
 /* ── BUDGET ── */
@@ -988,13 +1014,14 @@ function salva(){
   if(!data){toast('Inserisci una data');return;}
   if(!imp||imp<=0){toast('Importo non valido');return;}
   const m={id:Date.now().toString(),data,tipo:tipoC,importo:imp,nota};
+  if(sospettoDoppione(dati,m)&&!confirm('Hai appena inserito '+(tipoC==='incasso'?'un incasso':'una spesa')+' da € '+imp+' con la stessa data. Vuoi inserirlo lo stesso?')) return;
   saving=true; document.getElementById('bsalva').disabled=true;
   dati.unshift(m); save(); aggTutto();
   document.getElementById('ov-n').classList.remove('show');
   toast(tipoC==='incasso'?'+ Incasso salvato':'− Spesa salvata');
-  apiCall('add',{id:m.id,data:m.data,tipo:m.tipo,importo:m.importo.toString(),nota:m.nota||''})
+  apiAdd('add',{id:m.id,data:m.data,tipo:m.tipo,importo:m.importo.toString(),nota:m.nota||''},m.id)
     .then(()=>{saving=false;document.getElementById('bsalva').disabled=false;syncDot('ok');})
-    .catch(()=>{saving=false;document.getElementById('bsalva').disabled=false;syncDot('err');});
+    .catch(()=>{saving=false;document.getElementById('bsalva').disabled=false;syncDot('err');toast('Salvato sul telefono, non ancora sul foglio');});
 }
 
 /* ── MODIFICA/ELIMINA ── */
@@ -1127,8 +1154,10 @@ function aggOb(){
 function mergeArr(sheetsData,locali,pushFn){
   const unique=Array.from(new Map(sheetsData.map(m=>[m.id,m])).values());
   const ids=new Set(unique.map(m=>m.id));
+  // Un movimento il cui 'add' è ancora in volo NON è "mancante sul server": re-inviarlo
+  // era ciò che generava le righe doppie con lo stesso id. Resta nella lista, non si ri-pusha.
   const miss=locali.filter(m=>!ids.has(m.id));
-  miss.forEach(m=>pushFn(m));
+  miss.filter(m=>!inFlight.has(m.id)).forEach(m=>pushFn(m));
   return [...unique,...miss].sort((a,b)=>{
     const da=pd(a.data)||new Date(0), db=pd(b.data)||new Date(0);
     return db-da||b.id.localeCompare(a.id);
@@ -1138,11 +1167,15 @@ function sync(silent){
   if(!getUrl()){syncDot('err');return;}
   if(!silent)toast('Aggiornamento...');
   syncDot('load');
-  const locali=load();
   apiCall('get')
     .then(r=>{
+      // ⚠️ I locali si rileggono QUI, non prima della chiamata: il 'get' impiega qualche
+      // secondo e un movimento inserito nel frattempo, con lo snapshot vecchio, veniva
+      // cancellato dal merge (e dal localStorage subito dopo) — è il "l'ho inserito e non
+      // compare". 25/08/2026.
+      const locali=load();
       if(r&&r.success&&Array.isArray(r.data)){
-        dati=mergeArr(r.data,locali,m=>apiCall('add',{id:m.id,data:m.data,tipo:m.tipo,importo:m.importo.toString(),nota:m.nota||''}));
+        dati=mergeArr(r.data,locali,m=>apiAdd('add',{id:m.id,data:m.data,tipo:m.tipo,importo:m.importo.toString(),nota:m.nota||''},m.id));
         save();aggTutto();localStorage.setItem(LS_SYNC,new Date().toISOString());syncDot('ok');
         const miss=locali.filter(m=>!new Set(r.data.map(x=>x.id)).has(m.id));
         if(!silent)toast(miss.length?miss.length+' mov. recuperati':'Dati aggiornati');
@@ -1153,9 +1186,9 @@ function sync(silent){
 }
 function mergeP(r,silent){
   if(!r||!r.success||!Array.isArray(r.data))return;
-  const loc=loadP(), ids=new Set(r.data.map(m=>m.id));
+  const loc=loadP(), ids=new Set(r.data.map(m=>m.id));   // loadP() qui = stato aggiornato, vedi sync()
   const miss=loc.filter(m=>!ids.has(m.id));
-  datiP=mergeArr(r.data,loc,m=>apiCall('add_personal',{id:m.id,data:m.data,categoria:m.categoria,tipo:m.tipo,importo:m.importo.toString(),nota:m.nota||''}));
+  datiP=mergeArr(r.data,loc,m=>apiAdd('add_personal',{id:m.id,data:m.data,categoria:m.categoria,tipo:m.tipo,importo:m.importo.toString(),nota:m.nota||''},m.id));
   saveP();renderCatSum();renderLP();aggSaldoP();if(viewAttiva==='budget')renderBudget();localStorage.setItem(LS_SP,new Date().toISOString());
   if(!silent&&miss.length)toast('Personale: '+miss.length+' recuperati');
 }
@@ -1306,13 +1339,14 @@ function salvaP(){
   if(!data){toast('Inserisci una data');return;}
   if(!imp||imp<=0){toast('Importo non valido');return;}
   const m={id:Date.now().toString(),data,categoria:cat,tipo:tipoPC,importo:imp,nota};
+  if(sospettoDoppione(datiP,m)&&!confirm('Hai appena inserito '+(tipoPC==='entrata'?'un\'entrata':'un\'uscita')+' da € '+imp+' con la stessa data. Vuoi inserirlo lo stesso?')) return;
   savingP=true; document.getElementById('p-bok').disabled=true;
   datiP.unshift(m); saveP(); renderCatSum(); renderLP(); aggSaldoP();
   document.getElementById('ov-p').classList.remove('show');
   toast(tipoPC==='entrata'?'+ Entrata salvata':'− Uscita salvata');
-  apiCall('add_personal',{id:m.id,data:m.data,categoria:m.categoria,tipo:m.tipo,importo:m.importo.toString(),nota:m.nota||''})
+  apiAdd('add_personal',{id:m.id,data:m.data,categoria:m.categoria,tipo:m.tipo,importo:m.importo.toString(),nota:m.nota||''},m.id)
     .then(()=>{savingP=false; document.getElementById('p-bok').disabled=false;})
-    .catch(()=>{savingP=false; document.getElementById('p-bok').disabled=false;});
+    .catch(()=>{savingP=false; document.getElementById('p-bok').disabled=false;toast('Salvato sul telefono, non ancora sul foglio');});
 }
 
 /* ── Tabs periodo ── */

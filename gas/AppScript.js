@@ -186,9 +186,29 @@ function eliminaMovimento(id) {
   }
 }
 
+// ── Cerca un id nella colonna A di un foglio. -1 se non c'è ──
+// Serve per rendere gli "add" IDEMPOTENTI: la stessa chiamata ripetuta (retry del client,
+// re-invio del sync, doppio tap) non deve creare una seconda riga. 25/08/2026.
+function trovaRigaPerId(foglio, id) {
+  const ultima = foglio.getLastRow();
+  if (ultima < 2) return -1;
+  const ids = foglio.getRange(2, 1, ultima - 1, 1).getValues();
+  const cercato = id.toString();
+  for (let i = 0; i < ids.length; i++) {
+    if (ids[i][0].toString() === cercato) return i + 2;
+  }
+  return -1;
+}
+
 // ── Aggiunge un nuovo movimento ──
 function aggiungiMovimento(params) {
+  // Il lock serializza le scritture concorrenti: senza, due chiamate in parallelo
+  // leggono lo stesso getLastRow() e la formattazione finiva sulla riga sbagliata
+  // (è il motivo delle righe con importo "38" invece di "€38,00").
+  const lock = LockService.getScriptLock();
   try {
+    lock.waitLock(30000);
+
     const id      = params.id      || Date.now().toString();
     const data    = params.data    || '';
     const tipo    = params.tipo    || '';
@@ -200,6 +220,12 @@ function aggiungiMovimento(params) {
     }
 
     const foglio = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NOME_FOGLIO);
+
+    // già registrato con questo id → non riscrivere, rispondi comunque OK
+    if (trovaRigaPerId(foglio, id) !== -1) {
+      return { success: true, id: id, duplicato: true };
+    }
+
     foglio.appendRow([id, data, tipo, importo, nota]);
 
     const ultimaRiga = foglio.getLastRow();
@@ -211,6 +237,8 @@ function aggiungiMovimento(params) {
 
   } catch (err) {
     return { success: false, error: err.toString() };
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
   }
 }
 
@@ -312,7 +340,10 @@ function setupFoglioPersonale() {
 
 // ── Aggiunge movimento personale ──
 function aggiungiPersonale(params) {
+  const lock = LockService.getScriptLock();
   try {
+    lock.waitLock(30000);
+
     const id        = params.id        || Date.now().toString();
     const data      = params.data      || '';
     const categoria = params.categoria || '';
@@ -326,6 +357,11 @@ function aggiungiPersonale(params) {
     const foglio = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NOME_FOGLIO_PERSONALE);
     if (!foglio) return { success: false, error: 'Foglio "Personale" non trovato. Esegui setupFoglioPersonale().' };
 
+    // stesso id già presente → niente seconda riga (vedi trovaRigaPerId)
+    if (trovaRigaPerId(foglio, id) !== -1) {
+      return { success: true, id: id, duplicato: true };
+    }
+
     foglio.appendRow([id, data, categoria, tipo, importo, nota]);
     const ultimaRiga = foglio.getLastRow();
     foglio.getRange(ultimaRiga, 1, 1, 6).setBackground(tipo === 'entrata' ? '#E8F5E9' : '#FFEBEE');
@@ -334,6 +370,8 @@ function aggiungiPersonale(params) {
     return { success: true, id: id };
   } catch (err) {
     return { success: false, error: err.toString() };
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
   }
 }
 
@@ -896,4 +934,71 @@ function elencoTriggers() {
   }));
   const last = PropertiesService.getScriptProperties().getProperty('SPLITWISE_LAST_SYNC');
   return { success: true, triggers: triggers, last_sync: last };
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MANUTENZIONE — pulizia dei movimenti duplicati (25/08/2026)
+   Fino ad oggi 'add' faceva appendRow senza controllare l'id: ogni re-invio
+   (retry del client o re-push del sync) creava una riga in più con lo STESSO id.
+   Ora l'add è idempotente; questa funzione ripulisce lo storico già sporcato.
+   Uso: dedupDryRun() per vedere il conto, dedupEsegui() per cancellare davvero
+   (fa prima una copia di sicurezza dei fogli toccati).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+function dedupAnalizza() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const report = [];
+  [NOME_FOGLIO, NOME_FOGLIO_PERSONALE, NOME_FOGLIO_PRESTITO].forEach(nome => {
+    const foglio = ss.getSheetByName(nome);
+    if (!foglio || foglio.getLastRow() < 2) return;
+    const righe = foglio.getDataRange().getValues();
+    const visti = {}, daEliminare = [];
+    for (let i = 1; i < righe.length; i++) {
+      const id = righe[i][0] ? righe[i][0].toString() : '';
+      if (!id) continue;
+      if (visti[id]) daEliminare.push({ riga: i + 1, id: id, valori: righe[i] });
+      else visti[id] = i + 1;
+    }
+    report.push({ foglio: nome, righe: righe.length - 1, duplicati: daEliminare.length, dettaglio: daEliminare });
+  });
+  return report;
+}
+
+function dedupDryRun() {
+  const report = dedupAnalizza();
+  const testo = report.map(r =>
+    r.foglio + ': ' + r.duplicati + ' righe doppie su ' + r.righe +
+    (r.duplicati ? '\n  ' + r.dettaglio.map(d => 'riga ' + d.riga + ' — id ' + d.id + ' — ' + d.valori.slice(1).join(' · ')).join('\n  ') : '')
+  ).join('\n\n');
+  Logger.log(testo);
+  return { success: true, report: report, testo: testo };
+}
+
+function dedupEsegui() {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(60000);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const report = dedupAnalizza();
+    const stamp = Utilities.formatDate(new Date(), 'Europe/Rome', 'yyyyMMdd-HHmm');
+    const esito = [];
+
+    report.forEach(r => {
+      if (!r.duplicati) { esito.push(r.foglio + ': niente da fare'); return; }
+      const foglio = ss.getSheetByName(r.foglio);
+      // copia di sicurezza prima di cancellare
+      foglio.copyTo(ss).setName('BACKUP-' + r.foglio + '-' + stamp);
+      // si cancella dal basso verso l'alto, altrimenti gli indici slittano
+      r.dettaglio.map(d => d.riga).sort((a, b) => b - a).forEach(riga => foglio.deleteRow(riga));
+      esito.push(r.foglio + ': eliminate ' + r.duplicati + ' righe doppie (backup: BACKUP-' + r.foglio + '-' + stamp + ')');
+    });
+
+    const testo = esito.join('\n');
+    Logger.log(testo);
+    return { success: true, testo: testo };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
 }
