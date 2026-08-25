@@ -521,7 +521,7 @@
 
     <div class="card">
       <div class="ctit">Versione</div>
-      <div class="sr"><span class="sl">Build</span><span class="sv">v2.0 · fix-duplicati</span></div>
+      <div class="sr"><span class="sl">Build</span><span class="sv">v2.1 · fix-duplicati</span></div>
     </div>
 
     <div class="card">
@@ -1151,12 +1151,18 @@ function aggOb(){
 }
 
 /* ── SYNC CON MERGE ── */
+const RIPUSH_MAX_MS=7*24*3600*1000;   // 7 giorni
 function mergeArr(sheetsData,locali,pushFn){
   const unique=Array.from(new Map(sheetsData.map(m=>[m.id,m])).values());
   const ids=new Set(unique.map(m=>m.id));
-  // Un movimento il cui 'add' è ancora in volo NON è "mancante sul server": re-inviarlo
-  // era ciò che generava le righe doppie con lo stesso id. Resta nella lista, non si ri-pusha.
-  const miss=locali.filter(m=>!ids.has(m.id));
+  const ora=Date.now();
+  // Un movimento locale che non sta sul foglio può essere due cose diverse:
+  //  · RECENTE (id = timestamp di pochi giorni fa) → l'invio non è andato a buon fine: si ri-manda;
+  //  · VECCHIO → è stato cancellato altrove (altro dispositivo, pulizia sul foglio): si toglie
+  //    anche di qui. Prima si ri-mandava sempre, quindi un movimento eliminato tornava indietro
+  //    al primo sync e cancellarlo era impossibile. 25/08/2026.
+  // Un 'add' ancora in volo non è "mancante": resta e non si ri-pusha (evita la riga doppia).
+  const miss=locali.filter(m=>!ids.has(m.id) && (inFlight.has(m.id)||(ora-Number(m.id))<RIPUSH_MAX_MS));
   miss.filter(m=>!inFlight.has(m.id)).forEach(m=>pushFn(m));
   return [...unique,...miss].sort((a,b)=>{
     const da=pd(a.data)||new Date(0), db=pd(b.data)||new Date(0);
