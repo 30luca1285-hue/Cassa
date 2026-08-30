@@ -942,6 +942,7 @@ function aggiornaBudget(inp){
 
 /* ── INIT ── */
 document.addEventListener('DOMContentLoaded',()=>{
+  migraOb();
   dati=load(); loadBudget(); loadBudgetFam(); loadSpeseFam(); loadPR(); initP(); setOggi(); aggTutto();
   document.getElementById('inp-ob').value=getOb();
   syncTutti(true);
@@ -1117,7 +1118,17 @@ function confermaEliminaP(){
 }
 
 /* ── OBIETTIVO ── */
-function getOb(){return parseFloat(localStorage.getItem(LS_OBJ))||650;}
+// Dal 30/08/2026 Luca preleva 400 €/settimana invece di 650 (rientro del
+// prestito azienda fino al 30/11/2027) → l'obiettivo settimanale segue.
+const LS_OBJ_PIANO='cassa_obiettivo_piano', OBJ_PIANO=2, OBJ_DEFAULT=400;
+function migraOb(){
+  if(localStorage.getItem(LS_OBJ_PIANO)===String(OBJ_PIANO)) return;
+  const v=parseFloat(localStorage.getItem(LS_OBJ));
+  // si aggiorna solo chi ha ancora il vecchio 650: un valore scelto a mano resta
+  if(!v || v===650) localStorage.setItem(LS_OBJ,OBJ_DEFAULT);
+  localStorage.setItem(LS_OBJ_PIANO,String(OBJ_PIANO));
+}
+function getOb(){return parseFloat(localStorage.getItem(LS_OBJ))||OBJ_DEFAULT;}
 function salvaOb(){
   const v=parseFloat(document.getElementById('inp-ob').value);
   if(!v||v<=0){toast('Importo non valido');return;}
