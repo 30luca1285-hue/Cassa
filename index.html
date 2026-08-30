@@ -1845,11 +1845,15 @@ let PR_CFG={...PR_CFG_DEFAULT}, PRV=[], prTipoC='rata', prDelId=null, savingPR=f
 const prSett=()=>(PR_CFG.cadenza||'settimanale')==='settimanale';
 
 function loadPR(){
-  try{const s=localStorage.getItem(LS_PR_CFG);PR_CFG=s?{...PR_CFG_DEFAULT,...JSON.parse(s)}:{...PR_CFG_DEFAULT};}
-  catch(e){PR_CFG={...PR_CFG_DEFAULT};}
-  // Passaggio al piano settimanale sui device che hanno ancora il vecchio piano
-  // salvato: il capitale gia' impostato e i versamenti non si toccano.
-  if(PR_CFG.piano!==PR_PIANO){
+  // Si guarda il piano DENTRO la config salvata, non quello dell'oggetto gia'
+  // unito ai default: il default avrebbe riempito il campo mancante facendo
+  // sembrare gia' aggiornata una config vecchia, e la migrazione non partiva.
+  let salvata=null;
+  try{ salvata=JSON.parse(localStorage.getItem(LS_PR_CFG)||'null'); }catch(e){ salvata=null; }
+  PR_CFG = salvata ? {...PR_CFG_DEFAULT, ...salvata} : {...PR_CFG_DEFAULT};
+  // Passaggio al piano settimanale sui device con il piano vecchio salvato:
+  // capitale e versamenti non si toccano.
+  if(salvata && salvata.piano!==PR_PIANO){
     PR_CFG.rata=250; PR_CFG.cadenza='settimanale'; PR_CFG.piano=PR_PIANO;
     savePRCfg();
   }

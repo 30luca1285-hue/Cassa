@@ -1,4 +1,4 @@
-const CACHE = 'cassa-v12';
+const CACHE = 'cassa-v13';
 const SHELL = ['/Cassa/', '/Cassa/index.html', '/Cassa/logo-galluzzi.png', '/Cassa/manifest.json'];
 
 self.addEventListener('install', e => {
