@@ -470,7 +470,8 @@
     <div class="mhandle"></div>
     <div class="mtit">Piano di rientro</div>
     <div class="campo"><label>Capitale ricevuto (€)</label><input type="number" id="prc-cap" class="big" inputmode="decimal" step="0.01" min="0"/></div>
-    <div class="campo"><label>Rata mensile (€)</label><input type="number" id="prc-rata" inputmode="decimal" step="0.01" min="0"/></div>
+    <div class="campo"><label>Trattenuta (€)</label><input type="number" id="prc-rata" inputmode="decimal" step="0.01" min="0"/></div>
+    <div class="campo"><label>Ogni</label><select id="prc-cad"><option value="settimanale">settimana</option><option value="mensile">mese</option></select></div>
     <div class="campo"><label>Descrizione</label><input type="text" id="prc-desc" placeholder="Prestito azienda"/></div>
     <button class="bok b" onclick="salvaPRCfg()">Salva piano</button>
   </div>
@@ -1834,12 +1835,24 @@ function syncBudgetFam(silent){
    PRESTITO AZIENDA — conto temporaneo di rientro del debito
    ══════════════════════════════════════════════════════════ */
 const LS_PR='prestito_versamenti', LS_PR_CFG='prestito_config', LS_SPR='prestito_last_sync';
-const PR_CFG_DEFAULT={capitale:15000, rata:650, desc:'Prestito azienda'};
+// Piano 2 (dal 30/08/2026): la trattenuta non e' piu' mensile. Luca preleva 400 €
+// a settimana invece di 650 → 250 € a settimana restano in azienda a rimborso,
+// fino al 30/11/2027. Rimborso piu' veloce: ~63 settimane invece di 24 mesi.
+const PR_PIANO=2;
+const PR_CFG_DEFAULT={capitale:15000, rata:250, cadenza:'settimanale', desc:'Prestito azienda', piano:PR_PIANO};
 let PR_CFG={...PR_CFG_DEFAULT}, PRV=[], prTipoC='rata', prDelId=null, savingPR=false;
+
+const prSett=()=>(PR_CFG.cadenza||'settimanale')==='settimanale';
 
 function loadPR(){
   try{const s=localStorage.getItem(LS_PR_CFG);PR_CFG=s?{...PR_CFG_DEFAULT,...JSON.parse(s)}:{...PR_CFG_DEFAULT};}
   catch(e){PR_CFG={...PR_CFG_DEFAULT};}
+  // Passaggio al piano settimanale sui device che hanno ancora il vecchio piano
+  // salvato: il capitale gia' impostato e i versamenti non si toccano.
+  if(PR_CFG.piano!==PR_PIANO){
+    PR_CFG.rata=250; PR_CFG.cadenza='settimanale'; PR_CFG.piano=PR_PIANO;
+    savePRCfg();
+  }
   try{PRV=JSON.parse(localStorage.getItem(LS_PR))||[];}catch(e){PRV=[];}
 }
 function savePR(){try{localStorage.setItem(LS_PR,JSON.stringify(PRV));}catch(e){}}
@@ -1856,7 +1869,9 @@ function prTotali(){
 }
 function prDataFine(rateRim){
   if(rateRim<=0)return '—';
-  const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+rateRim);
+  const d=new Date();
+  if(prSett()) d.setDate(d.getDate()+rateRim*7);
+  else { d.setDate(1); d.setMonth(d.getMonth()+rateRim); }
   return d.toLocaleDateString('it-IT',{month:'short',year:'numeric'});
 }
 
@@ -1871,19 +1886,19 @@ function renderPrestito(){
     </div>
     <div class="pr-stats">
       <div class="pr-st"><div class="pr-st-v">${PRV.length}</div><div class="pr-st-l">versamenti</div></div>
-      <div class="pr-st"><div class="pr-st-v">${estinto?'0':t.rateRim}</div><div class="pr-st-l">rate mancanti</div></div>
+      <div class="pr-st"><div class="pr-st-v">${estinto?'0':t.rateRim}</div><div class="pr-st-l">${prSett()?'settimane':'rate'} mancanti</div></div>
       <div class="pr-st"><div class="pr-st-v" style="font-size:15px;">${estinto?'—':prDataFine(t.rateRim)}</div><div class="pr-st-l">fine stimata</div></div>
     </div>`;
 
   const lista=document.getElementById('pr-lista');
-  if(!PRV.length){ lista.innerHTML='<div class="pr-empty">Nessun versamento registrato.<br>Usa «Rata» ogni mese, «Extra» per i versamenti più grandi.</div>'; return; }
+  if(!PRV.length){ lista.innerHTML='<div class="pr-empty">Nessun versamento registrato.<br>Usa «Rata» a ogni trattenuta, «Extra» per i versamenti più grandi.</div>'; return; }
   const ord=[...PRV].sort((a,b)=>{const da=pd(a.data)||new Date(0),db=pd(b.data)||new Date(0);return db-da||String(b.id).localeCompare(String(a.id));});
   lista.innerHTML=ord.map(v=>`
     <div class="pr-row" onclick="apriEliminaPR('${v.id}')">
       <div class="pr-ic ${v.tipo==='extra'?'extra':'rata'}">${v.tipo==='extra'?'⚡':'↩'}</div>
       <div class="pr-info">
         <div class="pr-d">${fmtD(v.data)}</div>
-        <div class="pr-n">${v.tipo==='extra'?'Versamento extra':'Rata mensile'}${v.nota?' · '+esc(v.nota):''}</div>
+        <div class="pr-n">${v.tipo==='extra'?'Versamento extra':(prSett()?'Trattenuta settimanale':'Rata mensile')}${v.nota?' · '+esc(v.nota):''}</div>
       </div>
       <div class="pr-imp">${fmt(v.importo)}</div>
     </div>`).join('');
@@ -1891,7 +1906,7 @@ function renderPrestito(){
 
 function apriModalPR(tipo){
   prTipoC=tipo;
-  document.getElementById('pr-mtit').textContent=tipo==='extra'?'Versamento extra':'Rata mensile';
+  document.getElementById('pr-mtit').textContent=tipo==='extra'?'Versamento extra':(prSett()?'Trattenuta settimanale':'Rata mensile');
   const d=new Date();
   document.getElementById('pr-data').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   document.getElementById('pr-imp').value=tipo==='rata'?(parseFloat(PR_CFG.rata)||''):'';
@@ -1931,6 +1946,7 @@ function confermaEliminaPR(){
 function apriModalPRCfg(){
   document.getElementById('prc-cap').value=PR_CFG.capitale;
   document.getElementById('prc-rata').value=PR_CFG.rata;
+  document.getElementById('prc-cad').value=PR_CFG.cadenza||'settimanale';
   document.getElementById('prc-desc').value=PR_CFG.desc||'';
   document.getElementById('ov-prcfg').classList.add('show');
 }
@@ -1940,6 +1956,7 @@ function salvaPRCfg(){
   if(!cap||cap<=0){toast('Capitale non valido');return;}
   PR_CFG.capitale=cap;
   PR_CFG.rata=rata>0?rata:0;
+  PR_CFG.cadenza=document.getElementById('prc-cad').value==='mensile'?'mensile':'settimanale';
   PR_CFG.desc=document.getElementById('prc-desc').value.trim()||'Prestito azienda';
   savePRCfg(); renderPrestito();
   document.getElementById('ov-prcfg').classList.remove('show');
